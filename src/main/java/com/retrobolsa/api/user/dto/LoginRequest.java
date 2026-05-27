@@ -13,6 +13,6 @@ public class LoginRequest {
     private String email;
 
     @NotBlank(message = "Favor, preencher o campo de senha.")
-    @Size(min = 6, max = 20, message = "Senha precisa ter no mínimo 8 caracteres")
+    @Size(min = 8, max = 20, message = "Senha precisa ter no mínimo 8 caracteres")
     private String senha;
 }
