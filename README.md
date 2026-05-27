@@ -34,7 +34,7 @@ Siga os passos abaixo para rodar o backend na sua máquina local. O backend já 
    .\mvnw.cmd spring-boot:run
    ```
 
-3. A aplicação estará disponível em `http://localhost:8080`.
+3. A aplicação estará disponível em `http://localhost:8081`.
 
 > **Nota:** As tabelas e dados iniciais (seeds) serão aplicados automaticamente pelo **Flyway** ao rodar a aplicação.
 
