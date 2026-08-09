@@ -40,10 +40,10 @@ Siga os passos abaixo para rodar o backend na sua máquina local. O backend já 
 
 A documentação detalhada da arquitetura, diagrama UML de sequência comportamental e estado de integração está disponível na pasta docs:
 
-* [Visao Geral e Status de Integracao](docs/README.md)
+* [Visão Geral e Status de Integração](docs/README.md)
 * [Diagrama UML Comportamental](docs/UML_COMPORTAMENTAL.md)
-* [Visualizador Grafico HTML do UML](docs/uml_preview.html)
-* [Documentacao da API](docs/api_documentation.md)
-* [Documentacao do Frontend](docs/frontend_documentation.md)
-* [Roteiro de Integracao](docs/integration_roadmap.md)
+* [Visualizador Gráfico HTML do UML](docs/uml_preview.html)
+* [Documentação da API](docs/api_documentation.md)
+* [Documentação do Frontend](docs/frontend_documentation.md)
+* [Roteiro de Integração](docs/integration_roadmap.md)
 

@@ -141,12 +141,12 @@ O banco de dados relacional foi totalmente expandido através de novas migraçõ
 | Entidade / Tabela | Descrição e Propósito no Sistema | Status no Banco de Dados (Flyway) | Status no Código (JPA) |
 | :--- | :--- | :--- | :--- |
 | **`users`** | Cadastro de jogadores, e-mail, senha criptografada (BCrypt) e score total. | **Implementada** (`V1__create_users_table.sql`) | **Implementada** (`User.java`) |
-| **`assets`** | Ativos financeiros com nomes reais e codinomes anônimos para o jogo. | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |
-| **`asset_snapshots`** | Dados e indicadores fundamentalistas históricos por ativo e ano (P/L, DY, ROE, etc.). | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |
-| **`competitions`** | Configurações das rodadas (orçamento, descrição do cenário, ano inicial e final). | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |
-| **`competition_assets`** | Associação N:N entre rodadas de competição e ativos financeiros correspondentes. | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |
-| **`portfolios`** | Carteira do usuário em uma rodada contendo o retorno total obtido e o ranking final. | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |
-| **`allocations`** | Tabela N:N que descreve as parcelas e pesos de cada ativo na carteira do jogador. | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |
+| **`assets`** | Ativos financeiros com nomes reais e codinomes anônimos para o jogo. | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`Asset.java`) |
+| **`asset_snapshots`** | Dados e indicadores fundamentalistas históricos por ativo e ano (P/L, DY, ROE, etc.). | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`AssetSnapshot.java`) |
+| **`competitions`** | Configurações das rodadas (orçamento, descrição do cenário, ano inicial e final). | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`Competition.java`) |
+| **`competition_assets`** | Associação N:N entre rodadas de competição e ativos financeiros correspondentes. | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`Competition.java`) |
+| **`portfolios`** | Carteira do usuário em uma rodada contendo o retorno total obtido e o ranking final. | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`Portfolio.java`) |
+| **`allocations`** | Tabela N:N que descreve as parcelas e pesos de cada ativo na carteira do jogador. | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`Allocation.java`) |
 | **`modules`** | Módulos educativos agrupadores de lições financeiras. | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |
 | **`articles`** | Artigos e lições educativas sobre investimentos associados a um módulo. | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |
 | **`user_article_progress`** | Controle N:N do progresso e conclusão das lições educativas pelos usuários. | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |

@@ -56,13 +56,14 @@ Esta etapa preparou a fundação de segurança e conectividade do ecossistema e 
 
 ### ETAPA 2: Desenvolvimento de Entidades e Endpoints (No Backend)
 
-O foco agora é mapear as tabelas físicas criadas na migração `V2/V3` em classes Spring Boot JPA e expor as rotas correspondentes que o frontend já está mapeado para consumir:
+As tabelas físicas criadas na migração `V2/V3` foram mapeadas para classes Spring Boot JPA na parte de competições, e os controllers fundamentais foram implementados:
 
-1.  **Entidades JPA e Repositórios**:
-    *   Mapear `Asset.java`, `AssetSnapshot.java`, `Competition.java`, `Portfolio.java`, `Allocation.java`, `Module.java`, `Article.java` e `UserArticleProgress.java`.
-2.  **Controller de Competitividade (`GET /api/competitions/active`)**:
+1.  **Entidades JPA e Repositórios do Jogo (CONCLUÍDO)**:
+    *   Mapeados `Asset.java`, `AssetSnapshot.java`, `Competition.java`, `Portfolio.java` e `Allocation.java`.
+    *   *(Pendente)* Mapear `Module.java`, `Article.java` e `UserArticleProgress.java` (Hub Educacional).
+2.  **Controller de Competitividade (`GET /api/competitions/active`) (CONCLUÍDO)**:
     *   Retorna a rodada com status `'open'`, dados macroeconômicos e ativos relacionados.
-3.  **Controller de Portfólio (`POST /api/portfolios` & `GET /api/portfolios/my-last-result`)**:
+3.  **Controller de Portfólio (`POST /api/portfolios` & `GET /api/portfolios/my-last-result`) (CONCLUÍDO)**:
     *   Valida a soma das alocações e orçamento, processa a rentabilidade com base nos snapshots e gera o resultado histórico final para o gráfico.
 4.  **Controller de Educação (`GET /api/articles` & `POST /api/articles/{id}/complete`)**:
     *   Gerencia os artigos e o progresso individual dos alunos na trilha financeira.
