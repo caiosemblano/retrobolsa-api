@@ -1,6 +1,14 @@
 Viewed README.md:1-42
 
-Para alinhar o frontend (**retrobolsa-app**) às especificações e contratos implementados no backend, o frontend precisa realizar as seguintes atualizações e integrações:
+Para alinhar o frontend (**retrobolsa-app**) às especificações e contratos implementados no backend, as atualizações e integrações foram concluídas em ambas as versões (Web e Mobile).
+
+Status da Implementação: **CONCLUÍDO (100%)**
+- [x] Tipagens TypeScript alinhadas (Web & Mobile)
+- [x] Camada de serviços (`services/`) criada e integrada
+- [x] Telas integradas com APIs reais (HomeScreen, RankingsScreen, LearnScreen, ProfileScreen, PortfolioBuilderScreen, CompetitionContextScreen, ResultsScreen)
+- [x] Autenticação e persistência de token (Web & Mobile)
+- [x] Regra de alocação parcial e alertas de warning
+- [x] Remoção completa de dados mocados (`mockData.ts`)
 
 ---
 
