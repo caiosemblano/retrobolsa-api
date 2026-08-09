@@ -90,3 +90,13 @@ submit: (payload: SubmitPortfolioPayload) =>
 
 ### 4. Tratamento Global de Erros
 - Garantir que falhas de rede ou validações vindas do backend (ex: orçamento excedido, rodada encerrada ou tentativa de submissão duplicada) sejam capturadas pelo interceptor do Axios e apresentadas ao usuário via alertas amigáveis na interface.
+
+---
+
+### 5. Regra de Alocação de Carteira (Confirmada)
+
+O backend **aceita submissões com alocação parcial** (abaixo de 100% do orçamento). Quando o jogador não aloca 100% do capital, o backend:
+- Processa normalmente a carteira submetida.
+- Retorna um campo `warnings` na resposta `SubmitPortfolioResponse` contendo avisos como: "X% do seu capital permaneceu parado em caixa com rentabilidade 0%".
+- O frontend deve exibir cada warning como um toast de aviso (cor amarela) via `sonner` (Web) ou `Alert` (Mobile).
+- O botão "Confirmar Carteira" deve estar habilitado sempre que o valor alocado for maior que zero (não requer 50% ou 100% mínimo).
