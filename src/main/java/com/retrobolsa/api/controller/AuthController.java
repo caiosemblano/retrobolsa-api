@@ -2,15 +2,12 @@ package com.retrobolsa.api.controller;
 
 import com.retrobolsa.api.security.JwtUtil;
 import com.retrobolsa.api.service.UserService;
+import com.retrobolsa.api.user.dto.AuthResponse;
 import com.retrobolsa.api.user.dto.LoginRequest;
 import com.retrobolsa.api.user.dto.RegisterRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -24,12 +21,12 @@ public class AuthController {
     public ResponseEntity<Object> register(@Valid @RequestBody RegisterRequest request) throws Exception {
         userService.register(request);
         return ResponseEntity.status(201).build();
-
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Object> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         String token = userService.login(request);
-        return ResponseEntity.ok(token);
+        AuthResponse response = new AuthResponse(token, "Bearer", jwtUtil.getExpirationMs());
+        return ResponseEntity.ok(response);
     }
 }

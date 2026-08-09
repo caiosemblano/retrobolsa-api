@@ -29,6 +29,12 @@ public class JwtUtil {
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
+
+    /** Retorna o tempo de expiração configurado (em ms) para ser enviado na AuthResponse. */
+    public long getExpirationMs() {
+        return jwtExpirationMs;
+    }
+
     public String getUsernameFromToken(String token) {
         return Jwts.parser()
                 .setSigningKey(key).build()
