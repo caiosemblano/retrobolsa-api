@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador UML Comportamental - RetroBolsa</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            margin: 0;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #58a6ff;
+            margin-bottom: 8px;
+        }
+        p {
+            color: #8b949e;
+            margin-bottom: 24px;
+        }
+        .container {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 24px;
+            width: 100%;
+            max-width: 1200px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            overflow-x: auto;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Diagrama Comportamental — RetroBolsa</h1>
+    <p>Visualização gráfica da arquitetura-alvo do fluxo de sequência do projeto</p>
+    
+    <div style="background-color: #1f293d; border-left: 4px solid #388bfd; padding: 16px; border-radius: 4px; max-width: 1200px; width: 100%; margin-bottom: 24px; box-sizing: border-box;">
+        <strong style="color: #58a6ff;">Estado Atual da Implementacao:</strong>
+        <ul style="margin: 8px 0 0 20px; padding: 0; color: #8b949e;">
+            <li><span style="color: #3fb950;">Concluido:</span> Autenticacao JWT integrando React e Spring Boot, Flyway (V1, V2, V3), JPA Entities, SimulationEngine e Controllers REST (Competition e Portfolio).</li>
+            <li><span style="color: #d29922;">Pendente:</span> Virar a chave no frontend em services/ para que as telas consumam os controllers REST em vez de mockData.ts.</li>
+        </ul>
+    </div>
+
+    <div class="container">
+        <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Admin
+    actor Jogador
+    participant Frontend as Frontend (Web/Mobile)
+    participant API as Backend (Spring Boot)
+    participant Motor as Motor de Simulação
+    participant DB as PostgreSQL
+
+    rect rgb(30, 50, 80)
+    Note over Admin, DB: Fase 1 - Preparacao (Status DRAFT / OPEN)
+    Admin->>API: Cria nova Competicao (Cenario, Orcamento, Anos)
+    API->>DB: INSERT competition (Status DRAFT)
+    Admin->>API: Associa Ativos reais a Competicao
+    API->>DB: INSERT competition_assets
+    Admin->>API: Publica Competicao
+    API->>DB: UPDATE competition SET status = 'OPEN'
+    end
+
+    rect rgb(30, 70, 50)
+    Note over Jogador, DB: Fase 2 - Investimento e Montagem de Carteira
+    Jogador->>Frontend: Acessa a rodada ativa (HomeScreen)
+    Frontend->>API: GET /api/competitions/active
+    API->>DB: SELECT competition WHERE status = 'OPEN'
+    DB-->>API: Dados da competicao e IDs de ativos
+    API->>DB: SELECT snapshots WHERE year = start_year (Anonimizados)
+    DB-->>API: Indicadores fundamentalistas e alias
+    API-->>Frontend: Retorna cenario e ativos disponiveis
+    Frontend-->>Jogador: Exibe Tela de Cenario e Opcoes de Ativos
+
+    Jogador->>Frontend: Distribui orcamento entre ativos (Sliders)
+    Jogador->>Frontend: Submete Carteira (PortfolioBuilderScreen)
+    Frontend->>API: POST /api/portfolios (com alocacoes)
+    API->>API: Valida soma do orcamento e pesos
+    API->>DB: INSERT portfolio e allocations
+    API-->>Frontend: 201 Created (Sucesso)
+    Frontend-->>Jogador: Exibe tela de simulacao
+    end
+
+    rect rgb(70, 50, 30)
+    Note over API, DB: Fase 3 - Salto Temporal (Status CLOSED / SIMULATED)
+    Note over API: Prazo da rodada expira (ends_at)
+    API->>DB: UPDATE competition SET status = 'CLOSED'
+    API->>Motor: Dispara calculo da rodada
+    Motor->>DB: SELECT allocations de todos os portfolios da rodada
+    Motor->>DB: SELECT snapshots WHERE year = end_year (Precos finais)
+    Motor->>Motor: Calcula rentabilidade individual de cada carteira
+    Motor->>DB: UPDATE portfolios SET total_return, ranking
+    API->>DB: UPDATE competition SET status = 'SIMULATED'
+    end
+
+    rect rgb(50, 50, 70)
+    Note over Jogador, DB: Fase 4 - Resultados e Revelacao (Status REVEALED)
+    Jogador->>Frontend: Acessa Resultados (ResultsScreen)
+    Frontend->>API: GET /api/portfolios/my-last-result
+    API->>DB: SELECT portfolio, allocations
+    DB-->>API: Retorna dados da evolucao patrimonial
+    API-->>Frontend: Retorna resultado (Sem nomes reais ainda)
+    Frontend-->>Jogador: Exibe posicao no ranking e grafico de evolucao
+    
+    Admin->>API: Revela empresas da rodada
+    API->>DB: UPDATE competition SET status = 'REVEALED'
+    
+    Frontend->>API: GET /api/competitions/active
+    API-->>Frontend: status = 'REVEALED' e real_name dos ativos
+    Frontend-->>Jogador: Revela identidades reais
+    end
+        </pre>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            sequence: {
+                showSequenceNumbers: true,
+                actorMargin: 50
+            }
+        });
+    </script>
+</body>
+</html>

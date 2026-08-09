@@ -34,8 +34,16 @@ Siga os passos abaixo para rodar o backend na sua máquina local. O backend já 
    .\mvnw.cmd spring-boot:run
    ```
 
-3. A aplicação estará disponível em `http://localhost:8081`.
-
-> **Nota:** As tabelas e dados iniciais (seeds) serão aplicados automaticamente pelo **Flyway** ao rodar a aplicação.
-
 ---
+
+## Documentação do Projeto
+
+A documentação detalhada da arquitetura, diagrama UML de sequência comportamental e estado de integração está disponível na pasta docs:
+
+* [Visao Geral e Status de Integracao](docs/README.md)
+* [Diagrama UML Comportamental](docs/UML_COMPORTAMENTAL.md)
+* [Visualizador Grafico HTML do UML](docs/uml_preview.html)
+* [Documentacao da API](docs/api_documentation.md)
+* [Documentacao do Frontend](docs/frontend_documentation.md)
+* [Roteiro de Integracao](docs/integration_roadmap.md)
+
