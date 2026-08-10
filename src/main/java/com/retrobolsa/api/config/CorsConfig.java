@@ -14,7 +14,9 @@ public class CorsConfig implements WebMvcConfigurer{
                 .allowedOrigins(
                     "http://localhost:3000",  // React CRA / padrão
                     "http://localhost:5173",  // Vite dev server
-                    "http://localhost:19006"  // Expo Web
+                    "http://localhost:19006", // Expo Web (older)
+                    "http://localhost:8081",  // Expo Web
+                    "http://localhost:8082"   // Expo Web alternative port
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                 .allowedHeaders("*") // Allow all headers
