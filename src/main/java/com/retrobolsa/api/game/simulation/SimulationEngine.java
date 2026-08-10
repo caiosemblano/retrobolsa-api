@@ -72,11 +72,11 @@ public class SimulationEngine {
 
         BigDecimal finalValue = chartData.get(chartData.size() - 1).getValue();
         BigDecimal totalGrowth = finalValue.subtract(budget).divide(budget, MC);
-        BigDecimal totalReturn = totalGrowth.multiply(new BigDecimal("100")).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal totalReturn = totalGrowth.multiply(new BigDecimal("100")).setScale(2, RoundingMode.HALF_UP);
         
         // Para calcular CAGR usamos (Final/Initial)
         BigDecimal ratio = finalValue.divide(budget, MC);
-        BigDecimal annualReturn = calculateAnnualReturn(ratio, years).multiply(new BigDecimal("100")).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal annualReturn = calculateAnnualReturn(ratio, years).multiply(new BigDecimal("100")).setScale(2, RoundingMode.HALF_UP);
 
         List<AssetFinalValue> assetFinalValues = new ArrayList<>();
         for (int i = 0; i < inputs.size(); i++) {
