@@ -26,7 +26,16 @@ public class RankingController {
             @RequestParam(required = false) Integer roundNumber,
             @RequestParam(required = false) String type) {
 
-        if ("global".equalsIgnoreCase(type)) {
+        if ("global".equalsIgnoreCase(type) || "general".equalsIgnoreCase(type)) {
+            return ResponseEntity.ok(rankingService.getGlobalRanking());
+        }
+        
+        if ("quinzenal".equalsIgnoreCase(type)) {
+            return ResponseEntity.ok(rankingService.getQuinzenalRanking());
+        }
+
+        if ("season".equalsIgnoreCase(type)) {
+            // Placeholder: retornar ranking da temporada (pode ser o mesmo que o global por enquanto ou vazio)
             return ResponseEntity.ok(rankingService.getGlobalRanking());
         }
 

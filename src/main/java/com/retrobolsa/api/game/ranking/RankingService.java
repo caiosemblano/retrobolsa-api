@@ -20,6 +20,17 @@ public class RankingService {
 
     private final PortfolioRepository portfolioRepository;
     private final UserRepository userRepository;
+    private final com.retrobolsa.api.game.competition.CompetitionRepository competitionRepository;
+
+    @Transactional(readOnly = true)
+    public List<RankingResponseDto> getQuinzenalRanking() {
+        // Encontra a competição ativa (open)
+        return competitionRepository.findByStatus("open")
+                .map(comp -> portfolioRepository.findByCompetitionIdOrderByRankAsc(comp.getId()).stream()
+                        .map(this::toRankingResponse)
+                        .toList())
+                .orElse(List.of());
+    }
 
     @Transactional(readOnly = true)
     public List<RankingResponseDto> getRanking(UUID competitionId, Integer roundNumber) {
