@@ -67,4 +67,41 @@ public class CompetitionService {
                 .assets(assetDtos)
                 .build();
     }
+    @Transactional
+    public void nextRound() {
+        Competition current = competitionRepository.findByStatus("open")
+                .orElseThrow(() -> new IllegalArgumentException("Nenhuma rodada ativa para avancar"));
+        
+        current.setStatus("closed");
+        competitionRepository.save(current);
+
+        int nextRoundNumber = current.getRoundNumber() + 1;
+        competitionRepository.findAll().stream()
+                .filter(c -> c.getRoundNumber() == nextRoundNumber)
+                .findFirst()
+                .ifPresent(next -> {
+                    next.setStatus("open");
+                    competitionRepository.save(next);
+                });
+    }
+
+    private final jakarta.persistence.EntityManager entityManager;
+
+    @Transactional
+    public void resetGame() {
+        // Apaga todas as carteiras e alocacoes do banco
+        entityManager.createNativeQuery("DELETE FROM allocations").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM portfolios").executeUpdate();
+
+        // Volta todas as competições para 'closed' e a rodada 1 para 'open'
+        List<Competition> comps = competitionRepository.findAll();
+        for (Competition c : comps) {
+            if (c.getRoundNumber() == 1) {
+                c.setStatus("open");
+            } else {
+                c.setStatus("closed");
+            }
+        }
+        competitionRepository.saveAll(comps);
+    }
 }

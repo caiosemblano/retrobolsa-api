@@ -44,9 +44,12 @@ public class PortfolioService {
             throw new IllegalArgumentException("Esta rodada nao esta aberta para submissoes");
         }
 
-        if (portfolioRepository.findByUserIdAndCompetitionId(userId, competitionId).isPresent()) {
-            throw new IllegalArgumentException("Voce ja submeteu uma carteira para esta rodada");
-        }
+        portfolioRepository.findByUserIdAndCompetitionId(userId, competitionId)
+                .ifPresent(existing -> {
+                    // Para o modo demonstracao, deletamos a carteira antiga para permitir uma nova submissao
+                    portfolioRepository.delete(existing);
+                    portfolioRepository.flush(); // forçamos o delete imediato para evitar constraint violation ao salvar a nova
+                });
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario nao encontrado"));
