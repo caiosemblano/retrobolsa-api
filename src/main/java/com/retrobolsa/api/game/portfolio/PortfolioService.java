@@ -2,8 +2,8 @@ package com.retrobolsa.api.game.portfolio;
 
 import com.retrobolsa.api.game.asset.Asset;
 import com.retrobolsa.api.game.asset.AssetRepository;
-import com.retrobolsa.api.game.asset.AssetSnapshot;
-import com.retrobolsa.api.game.asset.AssetSnapshotRepository;
+import com.retrobolsa.api.game.asset.HistoricalQuote;
+import com.retrobolsa.api.game.asset.HistoricalQuoteRepository;
 import com.retrobolsa.api.game.competition.Competition;
 import com.retrobolsa.api.game.competition.CompetitionRepository;
 import com.retrobolsa.api.game.dto.PortfolioResultDto;
@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.*;
 
 @Service
@@ -28,7 +29,7 @@ public class PortfolioService {
     private final AllocationRepository allocationRepository;
     private final CompetitionRepository competitionRepository;
     private final AssetRepository assetRepository;
-    private final AssetSnapshotRepository snapshotRepository;
+    private final HistoricalQuoteRepository quoteRepository;
     private final UserRepository userRepository;
     private final SimulationEngine simulationEngine;
 
@@ -73,15 +74,15 @@ public class PortfolioService {
             Asset asset = assetRepository.findById(assetId)
                     .orElseThrow(() -> new IllegalArgumentException("Ativo nao encontrado: " + alloc.getAssetId()));
 
-            List<AssetSnapshot> snapshots = snapshotRepository
-                    .findByAssetIdAndYearBetweenOrderByYearAsc(assetId, competition.getStartYear(), competition.getEndYear());
+            List<HistoricalQuote> quotes = quoteRepository
+                    .findAllByAssetIdAndDateBetweenOrderByDateAsc(assetId, LocalDate.of(competition.getStartYear() - 1, 12, 1), LocalDate.of(competition.getEndYear(), 12, 31));
 
-            if (snapshots.isEmpty()) {
+            if (quotes.isEmpty()) {
                 throw new IllegalStateException("Dados historicos indisponiveis para o ativo: " + asset.getAnonymousName());
             }
 
             totalAllocated = totalAllocated.add(alloc.getAmount());
-            simulationInputs.add(new SimulationEngine.AllocationInput(assetId, alloc.getAmount(), snapshots));
+            simulationInputs.add(new SimulationEngine.AllocationInput(assetId, alloc.getAmount(), quotes));
             allocationDataList.add(new AllocationData(asset, alloc.getAmount()));
         }
 
@@ -139,10 +140,10 @@ public class PortfolioService {
 
         List<SimulationEngine.AllocationInput> inputs = new ArrayList<>();
         for (Allocation alloc : portfolio.getAllocations()) {
-            List<AssetSnapshot> snapshots = snapshotRepository
-                    .findByAssetIdAndYearBetweenOrderByYearAsc(alloc.getAsset().getId(),
-                            competition.getStartYear(), competition.getEndYear());
-            inputs.add(new SimulationEngine.AllocationInput(alloc.getAsset().getId(), alloc.getAmountInvested(), snapshots));
+            List<HistoricalQuote> quotes = quoteRepository
+                    .findAllByAssetIdAndDateBetweenOrderByDateAsc(alloc.getAsset().getId(),
+                            LocalDate.of(competition.getStartYear() - 1, 12, 1), LocalDate.of(competition.getEndYear(), 12, 31));
+            inputs.add(new SimulationEngine.AllocationInput(alloc.getAsset().getId(), alloc.getAmountInvested(), quotes));
         }
 
         SimulationEngine.SimulationResult result = simulationEngine.calculate(
