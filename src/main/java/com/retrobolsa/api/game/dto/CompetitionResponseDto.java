@@ -2,6 +2,7 @@ package com.retrobolsa.api.game.dto;
 
 import lombok.*;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -19,5 +20,6 @@ public class CompetitionResponseDto {
     private String scenarioDescription;
     private int startYear;
     private int endYear;
+    private LocalDateTime endsAt;
     private List<AssetDto> assets;
 }

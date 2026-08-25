@@ -24,7 +24,7 @@ O ecossistema é estruturado em uma arquitetura desacoplada cliente-servidor, co
 ### 2.1. Backend (`retrobolsa-api`)
 * **Linguagem & Framework**: Java 21, Spring Boot 4.0.6 (Parent).
 * **Banco de Dados Relacional**: PostgreSQL (produção/desenvolvimento) e H2 (testes em memória).
-* **Controle de Migrações DDL**: Flyway (`V1__create_users_table.sql`, `V2__create_game_tables.sql`, `V3__seed_initial_data.sql`).
+* **Controle de Migrações DDL**: Flyway (`V1` a `V7`), incluindo histórico de cotações, ciclo de vida das competições e roles de usuário.
 * **Cache & Sessão**: Redis (orquestrado via Docker Compose).
 * **Segurança & Autenticação**: Spring Security + JWT (`io.jsonwebtoken` v0.12.6) de forma stateless com codificação de senhas em BCrypt (`BCryptPasswordEncoder`).
 * **ORM e Utilitários**: Hibernate (`spring-boot-starter-data-jpa`), Lombok, Bean Validation.
@@ -115,7 +115,7 @@ Para garantir clareza sobre o nível de maturidade do repositório, a tabela aba
 | **Banco de Dados (Flyway)** | **Concluído**: Tabelas criadas (`V1`, `V2`) e populadas (`V3`). | N/A | **Concluído** |
 | **Autenticação & Registro** | **Concluído**: Endpoints `/api/auth/*` funcionais com JWT. | **Concluído**: Telas `LoginScreen` e `RegisterScreen` com Axios. | **100% Conectado** |
 | **Entidades de Jogo (JPA)** | **Concluído**: Mapeadas (`Asset`, `Competition`, `Portfolio`, etc.). | **Concluído**: Tipagens TypeScript ajustadas em `types/index.ts`. | **Pronto para Consumo** |
-| **Controlador de Rodadas** | **Concluído**: `CompetitionController` (`GET /api/competitions/active`). | **Pendente**: Consome estaticamente de `mockData.ts`. | **Pendente Virada no Frontend** |
+| **Controlador de Rodadas** | **Concluído**: `CompetitionController` e transições administrativas na branch `dev`. | **Pendente**: validar consumo no frontend real. | **Integração frontend pendente** |
 | **Envio de Carteira** | **Concluído**: `PortfolioController` e `PortfolioService`. | **Pendente**: Tela `PortfolioBuilderScreen` opera em modo simulado local. | **Pendente Virada no Frontend** |
 | **Motor de Simulação** | **Concluído**: `SimulationEngine` implementado no Java. | **Pendente**: `ResultsScreen` desenha gráfico com massa mockada. | **Pendente Virada no Frontend** |
 | **Hub Educacional** | **Pendente**: Tabela `articles` seeded, falta `ArticleController`. | **Pendente**: `LearnScreen` exibe lições locais estáticas. | **Pendente Backend & Frontend** |
@@ -143,7 +143,7 @@ Para garantir clareza sobre o nível de maturidade do repositório, a tabela aba
 3. Inicie o servidor Spring Boot:
    * Windows (PowerShell/CMD): `./mvnw.cmd spring-boot:run`
    * Linux/macOS: `./mvnw spring-boot:run`
-4. A API estará acessível em `http://localhost:8080`.
+4. A API estará acessível em `http://localhost:8081`.
 
 ### 7.2. Executando o Frontend Web (`retrobolsa-app`)
 1. Navegue até a pasta `retrobolsa-app`.

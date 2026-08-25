@@ -1,5 +1,11 @@
 # Plano de Integração — Conexão Frontend & Backend (RetroBolsa)
 
+> **Atualização (2026-08-25, branch `dev`):** a Etapa 2 do backend foi ampliada
+> com ranking, histórico de cotações, entidades/endpoints educacionais e o ciclo
+> explícito de competição (`open`, `closed`, `simulating`, `simulated`, `revealed`).
+> A submissão de carteira não simula mais imediatamente; a simulação ocorre pelo
+> endpoint administrativo `POST /api/admin/competitions/{id}/simulate`.
+
 Este documento atesta que **o frontend atualmente não está conectado com o backend**. Ambas as plataformas (Web e Mobile) operam de forma isolada, alimentando-se exclusivamente de dados simulados em `mockData.ts`. 
 
 Abaixo, detalhamos o diagnóstico do que foi encontrado em cada extremidade e o roteiro estruturado com o que falta fazer para conectá-los.
@@ -17,7 +23,8 @@ Abaixo, detalhamos o diagnóstico do que foi encontrado em cada extremidade e o 
 *   **Estrutura de Validações Aperfeiçoada** ✅: O handler de exceções intercepta e formata erros do Bean Validation de forma limpa. A inconsistência de validação de tamanho mínimo de senha no `LoginRequest` foi corrigida para `@Size(min = 8)`.
 *   **CORS Atualizado** ✅: Autorizada a comunicação cruzada com `http://localhost:5173` (Vite) e `http://localhost:19006` (Expo Web).
 *   **Banco de Dados de Simulação Pronto** ✅: Criada a migração estrutural `V2__create_game_tables.sql` (tabelas de ativos, snapshots fundamentalistas, rodadas, alocações, carteiras, módulos educativos, progresso do aluno) e seeded em `V3__seed_initial_data.sql` com dados históricos reais da Rodada 1 (Brasil 2004-2011) e do Hub Educacional.
-*   **Entidades JPA e Controllers Pendentes**: A modelagem de classes Spring (Entities, Repositories, Services e Controllers) correspondentes às tabelas da migração V2 e V3 será desenvolvida na **Etapa 2**.
+*   **Entidades JPA e Controllers**: Competições, portfólios, ativos, histórico,
+    ranking e educação já possuem implementação na branch `dev`.
 
 ---
 
@@ -54,7 +61,7 @@ Esta etapa preparou a fundação de segurança e conectividade do ecossistema e 
 
 ---
 
-### ETAPA 2: Desenvolvimento de Entidades e Endpoints (No Backend)
+### ETAPA 2: Desenvolvimento de Entidades e Endpoints (No Backend) (EM CONCLUSÃO)
 
 As tabelas físicas criadas na migração `V2/V3` foram mapeadas para classes Spring Boot JPA na parte de competições, e os controllers fundamentais foram implementados:
 
@@ -65,18 +72,22 @@ As tabelas físicas criadas na migração `V2/V3` foram mapeadas para classes Sp
     *   Retorna a rodada com status `'open'`, dados macroeconômicos e ativos relacionados.
 3.  **Controller de Portfólio (`POST /api/portfolios` & `GET /api/portfolios/my-last-result`) (CONCLUÍDO)**:
     *   Valida a soma das alocações e orçamento, processa a rentabilidade com base nos snapshots e gera o resultado histórico final para o gráfico.
-4.  **Controller de Educação (`GET /api/articles` & `POST /api/articles/{id}/complete`)**:
-    *   Gerencia os artigos e o progresso individual dos alunos na trilha financeira.
-5.  **Controller de Rankings (`GET /api/rankings`)**:
-    *   Retorna listas parciais/totais para a tela de classificação.
+4.  **Controller de Educação (`GET /api/articles` & `POST /api/articles/{id}/complete`) (CONCLUÍDO)**:
+    *   Gerencia artigos e progresso individual dos alunos.
+5.  **Controller de Rankings (`GET /api/rankings`) (CONCLUÍDO)**:
+    *   Retorna rankings de rodada e global.
 6.  **Segurança (`SecurityConfig.java`)**:
     *   Configurar a liberação e restrição de rotas seguras que exigirão a presença do cabeçalho JWT do usuário.
+7.  **Ciclo administrativo da rodada (CONCLUÍDO na `dev`)**:
+    *   `POST /api/admin/competitions/{id}/close`
+    *   `POST /api/admin/competitions/{id}/simulate`
+    *   `POST /api/admin/competitions/{id}/reveal` (requer role `ADMIN`)
 
 ---
 
 ### ETAPA 3: Integração das Telas do Simulador (Frontend)
 
-Consiste em plugar a nova camada de serviços (Services) nas telas de simulação substituindo as chamadas de mock:
+Consiste em plugar a nova camada de serviços (Services) nas telas de simulação substituindo as chamadas de mock. Essa etapa ainda depende do repositório frontend:
 
 1.  **Tela Inicial (`HomeScreen`)**:
     *   Carregar rodada ativa através de `competitionService.getActive()`.
@@ -85,7 +96,7 @@ Consiste em plugar a nova camada de serviços (Services) nas telas de simulaçã
 3.  **Montagem de Carteira (`PortfolioBuilderScreen`)**:
     *   Carregar ativos da rodada e disparar `portfolioService.submit(...)` ao concluir, tratando possíveis erros de saldo de validação.
 4.  **Tela de Espera (`SimulationWaitScreen`)**:
-    *   Carregar `portfolioService.getLastResult()` do backend e conduzir à tela de revelação.
+    *   Aguardar o estado `simulated` e carregar `portfolioService.getLastResult()`; nomes reais só aparecem em `revealed`.
 
 ---
 

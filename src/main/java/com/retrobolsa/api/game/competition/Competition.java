@@ -26,7 +26,7 @@ public class Competition {
 
     @Column(nullable = false)
     @Builder.Default
-    private String status = "open";
+    private String status = "draft";
 
     @Column(nullable = false)
     @Builder.Default
@@ -46,6 +46,9 @@ public class Competition {
 
     @Column(name = "days_left")
     private Integer daysLeft;
+
+    @Column(name = "ends_at")
+    private LocalDateTime endsAt;
 
     @Column(name = "created_at", nullable = false)
     @Builder.Default

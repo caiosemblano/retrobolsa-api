@@ -64,6 +64,7 @@ public class CompetitionService {
                 .scenarioDescription(competition.getScenarioDescription())
                 .startYear(competition.getStartYear())
                 .endYear(competition.getEndYear())
+                .endsAt(competition.getEndsAt())
                 .assets(assetDtos)
                 .build();
     }

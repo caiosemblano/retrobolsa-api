@@ -32,13 +32,16 @@ public class User {
     @Builder.Default
     private int totalScore = 0;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private String role = "PLAYER";
+
     @Column
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 
 
 }
-
 
 
 
