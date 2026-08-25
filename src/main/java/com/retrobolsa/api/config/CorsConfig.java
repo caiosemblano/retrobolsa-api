@@ -11,12 +11,15 @@ public class CorsConfig implements WebMvcConfigurer{
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**") // Apply to all paths
-                .allowedOrigins(
+                .allowedOriginPatterns(
                     "http://localhost:3000",  // React CRA / padrão
                     "http://localhost:5173",  // Vite dev server
                     "http://localhost:19006", // Expo Web (older)
                     "http://localhost:8081",  // Expo Web
-                    "http://localhost:8082"   // Expo Web alternative port
+                    "http://localhost:8082",  // Expo Web alternative port
+                    "http://192.168.*.*:[*]", // Frontends na rede local
+                    "http://10.*.*.*:[*]",
+                    "http://172.16.*.*:[*]"
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                 .allowedHeaders("*") // Allow all headers

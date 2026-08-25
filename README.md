@@ -20,7 +20,7 @@ Siga os passos abaixo para rodar o backend na sua máquina local. O backend já 
    ```bash
    docker-compose up -d
    ```
-   > Isso criará os serviços configurados na porta `5432` (PostgreSQL) e `6379` (Redis).
+   > O PostgreSQL ficará disponível na porta `5433` e o Redis na porta `6379`.
 
 2. Inicie a aplicação Spring Boot:
    
@@ -34,6 +34,16 @@ Siga os passos abaixo para rodar o backend na sua máquina local. O backend já 
    .\mvnw.cmd spring-boot:run
    ```
 
+3. Para testar em celulares conectados à mesma rede Wi-Fi:
+   - descubra o IPv4 do computador com `ipconfig`;
+   - inicie o frontend usando o host `0.0.0.0`;
+   - configure a URL da API como `http://IP_DO_COMPUTADOR:8081`;
+   - acesse o endereço do frontend pelo IP do computador, por exemplo
+     `http://192.168.0.10:5173`.
+
+   Se o Windows Firewall solicitar permissão para Java/Node, permita o acesso
+   em redes privadas. Cada jogador deve usar uma conta diferente.
+
 ---
 
 ## Documentação do Projeto
@@ -46,4 +56,3 @@ A documentação detalhada da arquitetura, diagrama UML de sequência comportame
 * [Documentação da API](docs/api_documentation.md)
 * [Documentação do Frontend](docs/frontend_documentation.md)
 * [Roteiro de Integração](docs/integration_roadmap.md)
-
