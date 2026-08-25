@@ -79,9 +79,11 @@ As tabelas físicas criadas na migração `V2/V3` foram mapeadas para classes Sp
 6.  **Segurança (`SecurityConfig.java`)**:
     *   Configurar a liberação e restrição de rotas seguras que exigirão a presença do cabeçalho JWT do usuário.
 7.  **Ciclo administrativo da rodada (CONCLUÍDO na `dev`)**:
+    *   `POST /api/admin/competitions` e `POST /api/admin/competitions/{id}/publish`
     *   `POST /api/admin/competitions/{id}/close`
     *   `POST /api/admin/competitions/{id}/simulate`
     *   `POST /api/admin/competitions/{id}/reveal` (requer role `ADMIN`)
+    *   Scheduler automático processa rodadas vencidas via `endsAt`.
 
 ---
 

@@ -251,6 +251,15 @@ Os endpoints abaixo exigem um usuário com `role = 'ADMIN'`:
 * `POST /api/admin/competitions/{id}/close`
 * `POST /api/admin/competitions/{id}/simulate`
 * `POST /api/admin/competitions/{id}/reveal`
+
+O cadastro de uma rodada é feito por `POST /api/admin/competitions` com
+`roundNumber`, `budget`, cenário, anos, `endsAt` e `assetIds`. O rascunho é
+publicado com `POST /api/admin/competitions/{id}/publish`.
+
+### 8.4 Perfil
+
+`GET /api/users/profile` retorna usuário, pontuação, melhor posição e quantidade
+de competições realizadas.
 *   **Resposta Esperada**: `200 OK` retornando o objeto DTO JSON da sessão ativa:
     ```json
     {

@@ -16,4 +16,5 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
     List<Portfolio> findByCompetitionIdOrderByRankAsc(UUID competitionId);
 
     List<Portfolio> findByCompetitionRoundNumberOrderByRankAsc(int roundNumber);
+    List<Portfolio> findByUserIdOrderByRankAsc(UUID userId);
 }
