@@ -248,6 +248,10 @@ Atualmente, existem dois endpoints ativos principais para autenticação sob o c
 
 Os endpoints abaixo exigem um usuário com `role = 'ADMIN'`:
 
+* `GET /api/admin/competitions` lista as rodadas em ordem
+* `POST /api/admin/competitions/next-round` encerra a rodada aberta e inicia a próxima
+* `POST /api/admin/competitions/{id}/start` inicia uma rodada específica (inclusive uma rodada pulada)
+* `POST /api/admin/competitions/reset` remove as carteiras/alocações e reabre a rodada 1
 * `POST /api/admin/competitions/{id}/close`
 * `POST /api/admin/competitions/{id}/simulate`
 * `POST /api/admin/competitions/{id}/reveal`

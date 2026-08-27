@@ -6,6 +6,7 @@ import com.retrobolsa.api.game.asset.Asset;
 import com.retrobolsa.api.game.asset.AssetRepository;
 import com.retrobolsa.api.game.dto.CreateCompetitionRequestDto;
 import com.retrobolsa.api.game.portfolio.PortfolioService;
+import com.retrobolsa.api.game.competition.CompetitionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,12 @@ public class CompetitionAdminController {
     private final CompetitionRepository competitionRepository;
     private final AssetRepository assetRepository;
     private final PortfolioService portfolioService;
+    private final CompetitionService competitionService;
+
+    @GetMapping
+    public ResponseEntity<List<Competition>> list() {
+        return ResponseEntity.ok(competitionService.listCompetitions());
+    }
 
     @PostMapping
     public ResponseEntity<Competition> create(@Valid @RequestBody CreateCompetitionRequestDto request) {
@@ -56,6 +63,24 @@ public class CompetitionAdminController {
         }
         competition.setStatus("open");
         competitionRepository.save(competition);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/next-round")
+    public ResponseEntity<Void> nextRound() {
+        competitionService.nextRound();
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/reset")
+    public ResponseEntity<Void> resetGame() {
+        competitionService.resetGame();
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/start")
+    public ResponseEntity<Void> start(@PathVariable UUID id) {
+        competitionService.startRound(id);
         return ResponseEntity.noContent().build();
     }
 

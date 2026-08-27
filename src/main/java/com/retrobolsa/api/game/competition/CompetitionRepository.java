@@ -10,4 +10,5 @@ public interface CompetitionRepository extends JpaRepository<Competition, UUID> 
 
     Optional<Competition> findByStatus(String status);
     List<Competition> findAllByStatusAndEndsAtLessThanEqual(String status, LocalDateTime endsAt);
+    List<Competition> findAllByOrderByRoundNumberAsc();
 }

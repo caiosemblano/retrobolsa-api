@@ -32,6 +32,7 @@ public class UserController {
         return ResponseEntity.ok(UserProfileResponseDto.builder()
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .role(user.getRole())
                 .totalScore(user.getTotalScore())
                 .bestRank(bestRank)
                 .competitions(portfolios.size())
