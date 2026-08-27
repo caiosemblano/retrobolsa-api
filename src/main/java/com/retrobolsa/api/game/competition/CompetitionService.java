@@ -119,6 +119,7 @@ public class CompetitionService {
     public void resetGame() {
         entityManager.createNativeQuery("DELETE FROM allocations").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM portfolios").executeUpdate();
+        entityManager.createNativeQuery("UPDATE users SET total_score = 0").executeUpdate();
 
         List<Competition> comps = competitionRepository.findAll();
         boolean foundRoundOne = false;

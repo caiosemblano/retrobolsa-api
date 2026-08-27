@@ -225,7 +225,18 @@ public class PortfolioService {
     private void recalculateRanks(UUID competitionId) {
         List<Portfolio> portfolios = portfolioRepository.findByCompetitionIdOrderByTotalReturnDesc(competitionId);
         for (int i = 0; i < portfolios.size(); i++) {
-            portfolios.get(i).setRank(i + 1);
+            Portfolio portfolio = portfolios.get(i);
+            portfolio.setRank(i + 1);
+            
+            User user = portfolio.getUser();
+            BigDecimal totalReturn = portfolio.getTotalReturn();
+            if (totalReturn != null) {
+                int pointsEarned = totalReturn.setScale(0, RoundingMode.HALF_UP)
+                        .intValue();
+                int newScore = Math.max(0, user.getTotalScore() + pointsEarned);
+                user.setTotalScore(newScore);
+                userRepository.save(user);
+            }
         }
         portfolioRepository.saveAll(portfolios);
     }
