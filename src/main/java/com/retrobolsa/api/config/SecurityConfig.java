@@ -79,6 +79,7 @@ public class SecurityConfig {
                         authorizeRequests
                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                 .requestMatchers("/api/auth/**", "/api/test/all").permitAll()
+                                .requestMatchers("/api/competitions/**", "/api/rankings/**", "/api/articles/**").permitAll()
                                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                                 .anyRequest().authenticated()
                 );

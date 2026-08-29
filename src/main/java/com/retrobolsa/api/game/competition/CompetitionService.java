@@ -29,9 +29,18 @@ public class CompetitionService {
 
     @Transactional(readOnly = true)
     public CompetitionResponseDto getLatestCompetition() {
-        Competition competition = competitionRepository.findTopByOrderByRoundNumberDesc()
-                .orElseThrow(() -> new IllegalArgumentException("Nenhuma rodada encontrada"));
-        return buildDto(competition);
+        List<Competition> comps = competitionRepository.findAllByOrderByRoundNumberAsc();
+        if (comps.isEmpty()) {
+            throw new IllegalArgumentException("Nenhuma rodada encontrada");
+        }
+
+        // Prioriza rodada aberta, simulando, simulada ou revelada
+        Competition target = comps.stream()
+                .filter(c -> "open".equals(c.getStatus()) || "simulating".equals(c.getStatus()) || "simulated".equals(c.getStatus()) || "revealed".equals(c.getStatus()) || "closed".equals(c.getStatus()))
+                .reduce((first, second) -> second) // pega a mais recente entre as ativas/jogadas
+                .orElse(comps.get(comps.size() - 1)); // fallback para a última existente
+
+        return buildDto(target);
     }
 
     private CompetitionResponseDto buildDto(Competition competition) {
