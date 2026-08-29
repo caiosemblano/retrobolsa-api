@@ -1,23 +1,23 @@
 package com.retrobolsa.api.config;
 
 import com.retrobolsa.api.exception.ErrorResponse;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    //Exceção geralzona (Pau pra toda obra)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex) {
-        return new ResponseEntity<>(new ErrorResponse(500, "Aconteceu um erro interno..."), HttpStatus.INTERNAL_SERVER_ERROR);
+        return new ResponseEntity<>(new ErrorResponse(500, ex.getMessage() != null ? ex.getMessage() : "Aconteceu um erro interno..."), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -25,31 +25,32 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(new ErrorResponse(400, ex.getMessage()), HttpStatus.BAD_REQUEST);
     }
 
-    /**
-     * Formata erros de validação de Bean Validation (ex: campo obrigatório ausente, email inválido).
-     * Retorna uma lista estruturada [{campo: "email", mensagem: "Formato inválido"}]
-     * em vez da mensagem bruta do Spring, que é extensa e expõe detalhes internos.
-     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(MethodArgumentNotValidException ex) {
-        List<Map<String, String>> erros = ex.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .map(fieldError -> Map.of(
-                        "campo", fieldError.getField(),
-                        "mensagem", fieldError.getDefaultMessage() != null
-                                ? fieldError.getDefaultMessage()
-                                : "Valor inválido"
-                ))
-                .collect(Collectors.toList());
+        List<Map<String, String>> erros = new ArrayList<>();
+
+        ex.getBindingResult().getFieldErrors().forEach(fieldError -> {
+            erros.add(Map.of(
+                    "campo", fieldError.getField(),
+                    "mensagem", fieldError.getDefaultMessage() != null ? fieldError.getDefaultMessage() : "Valor inválido"
+            ));
+        });
+
+        ex.getBindingResult().getGlobalErrors().forEach(globalError -> {
+            erros.add(Map.of(
+                    "campo", globalError.getObjectName(),
+                    "mensagem", globalError.getDefaultMessage() != null ? globalError.getDefaultMessage() : "Erro de validação"
+            ));
+        });
+
+        String firstMessage = !erros.isEmpty() ? erros.get(0).get("mensagem") : "Erro de validação";
 
         Map<String, Object> body = Map.of(
                 "status", 400,
-                "erro", "Erro de validação",
+                "erro", firstMessage,
                 "detalhes", erros
         );
 
         return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 }
-

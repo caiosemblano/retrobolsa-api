@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -64,7 +65,75 @@ public class CompetitionService {
                 .scenarioDescription(competition.getScenarioDescription())
                 .startYear(competition.getStartYear())
                 .endYear(competition.getEndYear())
+                .endsAt(competition.getEndsAt())
                 .assets(assetDtos)
                 .build();
+    }
+    @Transactional
+    public void nextRound() {
+        Competition current = competitionRepository.findByStatus("open")
+                .orElseThrow(() -> new IllegalArgumentException("Nenhuma rodada ativa para avancar"));
+
+        Competition next = competitionRepository.findAllByOrderByRoundNumberAsc().stream()
+                .filter(c -> c.getRoundNumber() == current.getRoundNumber() + 1)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Nao existe uma proxima rodada cadastrada"));
+        if (!"draft".equals(next.getStatus()) && !"closed".equals(next.getStatus())) {
+            throw new IllegalArgumentException("A proxima rodada nao pode ser iniciada no status atual");
+        }
+
+        current.setStatus("closed");
+        next.setStatus("open");
+        competitionRepository.save(current);
+        competitionRepository.save(next);
+    }
+
+    private final jakarta.persistence.EntityManager entityManager;
+
+    @Transactional
+    public void startRound(UUID id) {
+        Competition target = competitionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Rodada nao encontrada"));
+
+        if ("open".equals(target.getStatus())) {
+            return;
+        }
+        if (!"draft".equals(target.getStatus()) && !"closed".equals(target.getStatus())) {
+            throw new IllegalArgumentException("A rodada nao pode ser iniciada no status atual");
+        }
+
+        competitionRepository.findByStatus("open").ifPresent(current -> {
+            current.setStatus("closed");
+            competitionRepository.save(current);
+        });
+        target.setStatus("open");
+        competitionRepository.save(target);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Competition> listCompetitions() {
+        return competitionRepository.findAllByOrderByRoundNumberAsc();
+    }
+
+    @Transactional
+    public void resetGame() {
+        entityManager.createNativeQuery("DELETE FROM allocations").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM portfolios").executeUpdate();
+        entityManager.createNativeQuery("UPDATE users SET total_score = 0").executeUpdate();
+
+        List<Competition> comps = competitionRepository.findAll();
+        boolean foundRoundOne = false;
+        for (Competition c : comps) {
+            if (c.getRoundNumber() == 1) {
+                c.setStatus("open");
+                foundRoundOne = true;
+            } else {
+                c.setStatus("closed");
+            }
+        }
+        if (!foundRoundOne) {
+            throw new IllegalArgumentException("Nao existe uma rodada 1 cadastrada");
+        }
+        competitionRepository.saveAll(comps);
     }
 }

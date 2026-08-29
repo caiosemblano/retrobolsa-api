@@ -40,7 +40,6 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                 var context = SecurityContextHolder.createEmptyContext();
                 context.setAuthentication(authentication);
                 SecurityContextHolder.setContext(context);
-                SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL);
             }
         } catch (Exception e) {
             System.out.println("Não é possível definir a autenticação do usuário: " + e);

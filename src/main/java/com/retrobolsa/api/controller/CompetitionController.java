@@ -1,7 +1,7 @@
 package com.retrobolsa.api.controller;
 
-import com.retrobolsa.api.game.competition.CompetitionService;
 import com.retrobolsa.api.game.dto.CompetitionResponseDto;
+import com.retrobolsa.api.game.competition.CompetitionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,4 +19,5 @@ public class CompetitionController {
     public ResponseEntity<CompetitionResponseDto> getActiveCompetition() {
         return ResponseEntity.ok(competitionService.getActiveCompetition());
     }
+
 }

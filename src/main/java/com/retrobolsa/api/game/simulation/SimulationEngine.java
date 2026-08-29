@@ -1,6 +1,7 @@
 package com.retrobolsa.api.game.simulation;
 
 import com.retrobolsa.api.game.asset.AssetSnapshot;
+import com.retrobolsa.api.game.asset.HistoricalQuote;
 import com.retrobolsa.api.game.dto.PortfolioResultDto;
 import org.springframework.stereotype.Component;
 
@@ -16,90 +17,128 @@ public class SimulationEngine {
 
     private static final MathContext MC = new MathContext(10, RoundingMode.HALF_UP);
 
-    public SimulationResult calculate(BigDecimal budget, List<AllocationInput> inputs, int startYear, int endYear) {
+    public SimulationResult calculate(
+            BigDecimal budget, List<AllocationInput> inputs, int startYear, int endYear) {
         int years = endYear - startYear;
-        List<PortfolioResultDto.ChartPoint> chartData = new ArrayList<>();
+        BigDecimal[] shares = new BigDecimal[inputs.size()];
+        BigDecimal[] values = new BigDecimal[inputs.size()];
+        BigDecimal allocated = inputs.stream()
+                .map(AllocationInput::amountInvested)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        chartData.add(PortfolioResultDto.ChartPoint.builder()
-                .year(startYear)
-                .value(budget)
-                .build());
-
-        BigDecimal totalAllocated = BigDecimal.ZERO;
-        BigDecimal[] currentValues = new BigDecimal[inputs.size()];
         for (int i = 0; i < inputs.size(); i++) {
-            currentValues[i] = inputs.get(i).amountInvested;
-            totalAllocated = totalAllocated.add(inputs.get(i).amountInvested);
+            HistoricalQuote quote = findQuoteForYearEnd(inputs.get(i).quotes(), startYear - 1);
+            if (quote == null) quote = inputs.get(i).quotes().get(0);
+            BigDecimal price = BigDecimal.valueOf(quote.getClosePrice());
+            shares[i] = price.signum() == 0
+                    ? BigDecimal.ZERO
+                    : inputs.get(i).amountInvested().divide(price, MC);
         }
 
-        BigDecimal cashReserve = budget.subtract(totalAllocated);
-
-        for (int y = startYear; y < endYear; y++) {
-            BigDecimal yearTotal = cashReserve;
-
+        List<PortfolioResultDto.ChartPoint> chart = new ArrayList<>();
+        chart.add(point(startYear, budget));
+        BigDecimal cash = budget.subtract(allocated);
+        for (int year = startYear; year < endYear; year++) {
+            BigDecimal total = cash;
             for (int i = 0; i < inputs.size(); i++) {
-                AllocationInput input = inputs.get(i);
-                AssetSnapshot snapshot = findSnapshotForYear(input.snapshots, y);
-
-                if (snapshot != null && snapshot.getAnnualReturn() != null) {
-                    BigDecimal returnFactor = BigDecimal.ONE.add(snapshot.getAnnualReturn());
-                    currentValues[i] = currentValues[i].multiply(returnFactor, MC);
-                }
-
-                yearTotal = yearTotal.add(currentValues[i]);
+                HistoricalQuote quote = findQuoteForYearEnd(inputs.get(i).quotes(), year);
+                if (quote == null) quote = inputs.get(i).quotes().get(inputs.get(i).quotes().size() - 1);
+                values[i] = shares[i].multiply(BigDecimal.valueOf(quote.getClosePrice()), MC);
+                total = total.add(values[i]);
             }
+            chart.add(point(year + 1, total));
+        }
+        return result(budget, years, chart, finalValues(inputs, values));
+    }
 
-            chartData.add(PortfolioResultDto.ChartPoint.builder()
-                    .year(y + 1)
-                    .value(yearTotal.setScale(2, RoundingMode.HALF_UP))
-                    .build());
+    public SimulationResult calculateSnapshots(
+            BigDecimal budget, List<SnapshotAllocationInput> inputs, int startYear, int endYear) {
+        int years = endYear - startYear;
+        BigDecimal allocated = inputs.stream()
+                .map(SnapshotAllocationInput::amountInvested)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal[] values = inputs.stream()
+                .map(SnapshotAllocationInput::amountInvested)
+                .toArray(BigDecimal[]::new);
+
+        List<PortfolioResultDto.ChartPoint> chart = new ArrayList<>();
+        chart.add(point(startYear, budget));
+        BigDecimal cash = budget.subtract(allocated);
+        for (int year = startYear; year < endYear; year++) {
+            BigDecimal total = cash;
+            for (int i = 0; i < inputs.size(); i++) {
+                AssetSnapshot snapshot = findSnapshotForYear(inputs.get(i).snapshots(), year);
+                if (snapshot != null && snapshot.getAnnualReturn() != null) {
+                    values[i] = values[i].multiply(
+                            BigDecimal.ONE.add(snapshot.getAnnualReturn()), MC);
+                }
+                total = total.add(values[i]);
+            }
+            chart.add(point(year + 1, total));
         }
 
-        BigDecimal finalValue = chartData.get(chartData.size() - 1).getValue();
-        BigDecimal totalReturn = finalValue.divide(budget, MC);
-        BigDecimal annualReturn = calculateAnnualReturn(totalReturn, years);
-
-        List<AssetFinalValue> assetFinalValues = new ArrayList<>();
+        List<AssetFinalValue> finalValues = new ArrayList<>();
         for (int i = 0; i < inputs.size(); i++) {
-            assetFinalValues.add(new AssetFinalValue(
-                inputs.get(i).assetId,
-                inputs.get(i).amountInvested,
-                currentValues[i].setScale(2, RoundingMode.HALF_UP)
-            ));
+            finalValues.add(new AssetFinalValue(
+                    inputs.get(i).assetId(), inputs.get(i).amountInvested(),
+                    values[i].setScale(2, RoundingMode.HALF_UP)));
         }
+        return result(budget, years, chart, finalValues);
+    }
 
-        return new SimulationResult(
-            finalValue.setScale(2, RoundingMode.HALF_UP),
-            totalReturn.setScale(4, RoundingMode.HALF_UP),
-            annualReturn,
-            chartData,
-            assetFinalValues
-        );
+    private PortfolioResultDto.ChartPoint point(int year, BigDecimal value) {
+        return PortfolioResultDto.ChartPoint.builder()
+                .year(year).value(value.setScale(2, RoundingMode.HALF_UP)).build();
+    }
+
+    private SimulationResult result(
+            BigDecimal budget, int years, List<PortfolioResultDto.ChartPoint> chart,
+            List<AssetFinalValue> finalValues) {
+        BigDecimal finalValue = chart.get(chart.size() - 1).getValue();
+        BigDecimal totalReturn = finalValue.subtract(budget).divide(budget, MC)
+                .multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal annualReturn = annualReturn(finalValue.divide(budget, MC), years)
+                .multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP);
+        return new SimulationResult(finalValue, totalReturn, annualReturn, chart, finalValues);
+    }
+
+    private List<AssetFinalValue> finalValues(
+            List<AllocationInput> inputs, BigDecimal[] values) {
+        List<AssetFinalValue> result = new ArrayList<>();
+        for (int i = 0; i < inputs.size(); i++) {
+            result.add(new AssetFinalValue(
+                    inputs.get(i).assetId(), inputs.get(i).amountInvested(),
+                    values[i].setScale(2, RoundingMode.HALF_UP)));
+        }
+        return result;
+    }
+
+    private HistoricalQuote findQuoteForYearEnd(List<HistoricalQuote> quotes, int year) {
+        HistoricalQuote result = null;
+        for (HistoricalQuote quote : quotes) {
+            if (quote.getDate().getYear() <= year
+                    && (result == null || quote.getDate().isAfter(result.getDate()))) {
+                result = quote;
+            }
+        }
+        return result;
     }
 
     private AssetSnapshot findSnapshotForYear(List<AssetSnapshot> snapshots, int year) {
-        for (AssetSnapshot s : snapshots) {
-            if (s.getYear() == year) return s;
-        }
-        return null;
+        return snapshots.stream()
+                .filter(snapshot -> snapshot.getYear() == year)
+                .findFirst().orElse(null);
     }
 
-    private BigDecimal calculateAnnualReturn(BigDecimal totalReturn, int years) {
-        if (years <= 0 || totalReturn.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO;
-        }
-        double tr = totalReturn.doubleValue();
-        double annualized = Math.pow(tr, 1.0 / years) - 1.0;
-        return BigDecimal.valueOf(annualized).setScale(4, RoundingMode.HALF_UP);
+    private BigDecimal annualReturn(BigDecimal ratio, int years) {
+        if (years <= 0 || ratio.signum() <= 0) return BigDecimal.ZERO;
+        return BigDecimal.valueOf(Math.pow(ratio.doubleValue(), 1.0 / years) - 1.0);
     }
 
-    public record AllocationInput(UUID assetId, BigDecimal amountInvested, List<AssetSnapshot> snapshots) {}
+    public record AllocationInput(UUID assetId, BigDecimal amountInvested, List<HistoricalQuote> quotes) {}
+    public record SnapshotAllocationInput(UUID assetId, BigDecimal amountInvested, List<AssetSnapshot> snapshots) {}
     public record AssetFinalValue(UUID assetId, BigDecimal amountInvested, BigDecimal finalValue) {}
     public record SimulationResult(
-        BigDecimal finalValue,
-        BigDecimal totalReturn,
-        BigDecimal annualReturn,
-        List<PortfolioResultDto.ChartPoint> chartData,
-        List<AssetFinalValue> assetFinalValues
-    ) {}
+            BigDecimal finalValue, BigDecimal totalReturn, BigDecimal annualReturn,
+            List<PortfolioResultDto.ChartPoint> chartData, List<AssetFinalValue> assetFinalValues) {}
 }

@@ -1,6 +1,14 @@
 Viewed README.md:1-42
 
-Para alinhar o frontend (**retrobolsa-app**) às especificações e contratos implementados no backend, o frontend precisa realizar as seguintes atualizações e integrações:
+Para alinhar o frontend (**retrobolsa-app**) às especificações e contratos implementados no backend, as atualizações e integrações foram concluídas em ambas as versões (Web e Mobile).
+
+Status da Implementação: **CONCLUÍDO (100%)**
+- [x] Tipagens TypeScript alinhadas (Web & Mobile)
+- [x] Camada de serviços (`services/`) criada e integrada
+- [x] Telas integradas com APIs reais (HomeScreen, RankingsScreen, LearnScreen, ProfileScreen, PortfolioBuilderScreen, CompetitionContextScreen, ResultsScreen)
+- [x] Autenticação e persistência de token (Web & Mobile)
+- [x] Regra de alocação parcial e alertas de warning
+- [x] Remoção completa de dados mocados (`mockData.ts`)
 
 ---
 
@@ -90,3 +98,13 @@ submit: (payload: SubmitPortfolioPayload) =>
 
 ### 4. Tratamento Global de Erros
 - Garantir que falhas de rede ou validações vindas do backend (ex: orçamento excedido, rodada encerrada ou tentativa de submissão duplicada) sejam capturadas pelo interceptor do Axios e apresentadas ao usuário via alertas amigáveis na interface.
+
+---
+
+### 5. Regra de Alocação de Carteira (Confirmada)
+
+O backend **aceita submissões com alocação parcial** (abaixo de 100% do orçamento). Quando o jogador não aloca 100% do capital, o backend:
+- Processa normalmente a carteira submetida.
+- Retorna um campo `warnings` na resposta `SubmitPortfolioResponse` contendo avisos como: "X% do seu capital permaneceu parado em caixa com rentabilidade 0%".
+- O frontend deve exibir cada warning como um toast de aviso (cor amarela) via `sonner` (Web) ou `Alert` (Mobile).
+- O botão "Confirmar Carteira" deve estar habilitado sempre que o valor alocado for maior que zero (não requer 50% ou 100% mínimo).

@@ -147,9 +147,9 @@ O banco de dados relacional foi totalmente expandido através de novas migraçõ
 | **`competition_assets`** | Associação N:N entre rodadas de competição e ativos financeiros correspondentes. | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`Competition.java`) |
 | **`portfolios`** | Carteira do usuário em uma rodada contendo o retorno total obtido e o ranking final. | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`Portfolio.java`) |
 | **`allocations`** | Tabela N:N que descreve as parcelas e pesos de cada ativo na carteira do jogador. | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`Allocation.java`) |
-| **`modules`** | Módulos educativos agrupadores de lições financeiras. | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |
-| **`articles`** | Artigos e lições educativas sobre investimentos associados a um módulo. | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |
-| **`user_article_progress`** | Controle N:N do progresso e conclusão das lições educativas pelos usuários. | **Implementada** (`V2__create_game_tables.sql`) | *Pendente (Etapa 2)* |
+| **`modules`** | Módulos educativos agrupadores de lições financeiras. | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`Module.java`) |
+| **`articles`** | Artigos e lições educativas sobre investimentos associados a um módulo. | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`Article.java`) |
+| **`user_article_progress`** | Controle N:N do progresso e conclusão das lições educativas pelos usuários. | **Implementada** (`V2__create_game_tables.sql`) | **Implementada** (`UserArticleProgress.java`) |
 
 ### Observação Estrutural Importante
 O Flyway está ativo no projeto (`spring.flyway.enabled=true`) e lê as migrações em `db/migration/`. Atualmente, as migrações `V1`, `V2` e `V3` estão criadas e prontas. Ao iniciar a API, toda a estrutura física de dados é gerada automaticamente no PostgreSQL e populada com os dados iniciais reais em `V3` (incluindo a Rodada 1 Brasil 2004-2011, indicadores de ativos históricos reais anonimizados e os módulos/lições educativas). A correspondência dessas tabelas para o código Java (JPA Entities) está planejada para a **Etapa 2** da integração.
@@ -208,10 +208,10 @@ Durante o processo de integração da Etapa 1, todos os pontos de atenção e in
         ```
 
 4.  **Processo Automático de Inicialização**:
-    *   O Spring Boot será carregado na porta padrão `8080`.
+    *   O Spring Boot será carregado na porta `8081`.
     *   O **Flyway** detectará a migração pendente e executará a query DDL para criar a tabela `users`.
     *   O Hibernate validará a integridade do banco de dados com a entidade `User` (`spring.jpa.hibernate.ddl-auto=validate`).
-    *   O servidor estará pronto para receber conexões HTTP no endereço `http://localhost:8080`.
+    *   O servidor estará pronto para receber conexões HTTP no endereço `http://localhost:8081`.
 
 ---
 
@@ -220,7 +220,7 @@ Durante o processo de integração da Etapa 1, todos os pontos de atenção e in
 Atualmente, existem dois endpoints ativos principais para autenticação sob o caminho `/api/auth/*`. Abaixo estão os exemplos de requisição para testes (utilizando ferramentas como Postman, Insomnia ou extensão Bruno):
 
 ### 8.1. Cadastro de Usuário
-*   **Endpoint**: `POST http://localhost:8080/api/auth/register`
+*   **Endpoint**: `POST http://localhost:8081/api/auth/register`
 *   **Headers**: `Content-Type: application/json`
 *   **Payload (JSON)**:
     ```json
@@ -234,7 +234,7 @@ Atualmente, existem dois endpoints ativos principais para autenticação sob o c
 *   **Resposta Esperada**: `201 Created` (sem corpo).
 
 ### 8.2. Login de Usuário
-*   **Endpoint**: `POST http://localhost:8080/api/auth/login`
+*   **Endpoint**: `POST http://localhost:8081/api/auth/login`
 *   **Headers**: `Content-Type: application/json`
 *   **Payload (JSON)**:
     ```json
@@ -243,6 +243,27 @@ Atualmente, existem dois endpoints ativos principais para autenticação sob o c
       "senha": "SenhaForte123"
     }
     ```
+
+### 8.3 Operações administrativas de rodada
+
+Os endpoints abaixo exigem um usuário com `role = 'ADMIN'`:
+
+* `GET /api/admin/competitions` lista as rodadas em ordem
+* `POST /api/admin/competitions/next-round` encerra a rodada aberta e inicia a próxima
+* `POST /api/admin/competitions/{id}/start` inicia uma rodada específica (inclusive uma rodada pulada)
+* `POST /api/admin/competitions/reset` remove as carteiras/alocações e reabre a rodada 1
+* `POST /api/admin/competitions/{id}/close`
+* `POST /api/admin/competitions/{id}/simulate`
+* `POST /api/admin/competitions/{id}/reveal`
+
+O cadastro de uma rodada é feito por `POST /api/admin/competitions` com
+`roundNumber`, `budget`, cenário, anos, `endsAt` e `assetIds`. O rascunho é
+publicado com `POST /api/admin/competitions/{id}/publish`.
+
+### 8.4 Perfil
+
+`GET /api/users/profile` retorna usuário, pontuação, melhor posição e quantidade
+de competições realizadas.
 *   **Resposta Esperada**: `200 OK` retornando o objeto DTO JSON da sessão ativa:
     ```json
     {

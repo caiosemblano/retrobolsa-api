@@ -2,6 +2,8 @@ package com.retrobolsa.api.game.portfolio;
 
 import com.retrobolsa.api.game.asset.Asset;
 import com.retrobolsa.api.game.asset.AssetRepository;
+import com.retrobolsa.api.game.asset.HistoricalQuote;
+import com.retrobolsa.api.game.asset.HistoricalQuoteRepository;
 import com.retrobolsa.api.game.asset.AssetSnapshot;
 import com.retrobolsa.api.game.asset.AssetSnapshotRepository;
 import com.retrobolsa.api.game.competition.Competition;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.*;
 
 @Service
@@ -28,6 +31,7 @@ public class PortfolioService {
     private final AllocationRepository allocationRepository;
     private final CompetitionRepository competitionRepository;
     private final AssetRepository assetRepository;
+    private final HistoricalQuoteRepository quoteRepository;
     private final AssetSnapshotRepository snapshotRepository;
     private final UserRepository userRepository;
     private final SimulationEngine simulationEngine;
@@ -73,15 +77,18 @@ public class PortfolioService {
             Asset asset = assetRepository.findById(assetId)
                     .orElseThrow(() -> new IllegalArgumentException("Ativo nao encontrado: " + alloc.getAssetId()));
 
-            List<AssetSnapshot> snapshots = snapshotRepository
-                    .findByAssetIdAndYearBetweenOrderByYearAsc(assetId, competition.getStartYear(), competition.getEndYear());
+            List<HistoricalQuote> quotes = quoteRepository
+                    .findAllByAssetIdAndDateBetweenOrderByDateAsc(assetId, LocalDate.of(competition.getStartYear() - 1, 12, 1), LocalDate.of(competition.getEndYear(), 12, 31));
 
-            if (snapshots.isEmpty()) {
+            List<AssetSnapshot> snapshots = snapshotRepository
+                    .findByAssetIdAndYearBetweenOrderByYearAsc(
+                            assetId, competition.getStartYear(), competition.getEndYear());
+            if (quotes.isEmpty() && snapshots.isEmpty()) {
                 throw new IllegalStateException("Dados historicos indisponiveis para o ativo: " + asset.getAnonymousName());
             }
 
             totalAllocated = totalAllocated.add(alloc.getAmount());
-            simulationInputs.add(new SimulationEngine.AllocationInput(assetId, alloc.getAmount(), snapshots));
+            simulationInputs.add(new SimulationEngine.AllocationInput(assetId, alloc.getAmount(), quotes));
             allocationDataList.add(new AllocationData(asset, alloc.getAmount()));
         }
 
@@ -99,14 +106,9 @@ public class PortfolioService {
                     " ficaram parados em caixa com rentabilidade 0%.");
         }
 
-        SimulationEngine.SimulationResult result = simulationEngine.calculate(
-                competition.getBudget(), simulationInputs, competition.getStartYear(), competition.getEndYear());
-
         Portfolio portfolio = Portfolio.builder()
                 .user(user)
                 .competition(competition)
-                .totalReturn(result.totalReturn())
-                .finalValue(result.finalValue())
                 .build();
         portfolio = portfolioRepository.save(portfolio);
 
@@ -122,8 +124,6 @@ public class PortfolioService {
         }
         allocationRepository.saveAll(allocations);
 
-        recalculateRanks(competitionId);
-
         return SubmitPortfolioResponseDto.builder()
                 .message("Carteira submetida com sucesso")
                 .warnings(warnings.isEmpty() ? null : warnings)
@@ -136,17 +136,20 @@ public class PortfolioService {
                 .orElseThrow(() -> new IllegalArgumentException("Nenhum portfolio encontrado"));
 
         Competition competition = portfolio.getCompetition();
+        if (!"simulated".equals(competition.getStatus()) && !"revealed".equals(competition.getStatus())) {
+            throw new IllegalArgumentException("O resultado ainda nao foi simulado");
+        }
 
         List<SimulationEngine.AllocationInput> inputs = new ArrayList<>();
         for (Allocation alloc : portfolio.getAllocations()) {
-            List<AssetSnapshot> snapshots = snapshotRepository
-                    .findByAssetIdAndYearBetweenOrderByYearAsc(alloc.getAsset().getId(),
-                            competition.getStartYear(), competition.getEndYear());
-            inputs.add(new SimulationEngine.AllocationInput(alloc.getAsset().getId(), alloc.getAmountInvested(), snapshots));
+            List<HistoricalQuote> quotes = quoteRepository
+                    .findAllByAssetIdAndDateBetweenOrderByDateAsc(alloc.getAsset().getId(),
+                            LocalDate.of(competition.getStartYear() - 1, 12, 1), LocalDate.of(competition.getEndYear(), 12, 31));
+            inputs.add(new SimulationEngine.AllocationInput(alloc.getAsset().getId(), alloc.getAmountInvested(), quotes));
         }
 
-        SimulationEngine.SimulationResult result = simulationEngine.calculate(
-                competition.getBudget(), inputs, competition.getStartYear(), competition.getEndYear());
+        SimulationEngine.SimulationResult result = calculateResult(
+                portfolio, competition, inputs);
 
         List<PortfolioResultDto.RevealedAssetDto> revealedAssets = new ArrayList<>();
         for (SimulationEngine.AssetFinalValue afv : result.assetFinalValues()) {
@@ -161,11 +164,12 @@ public class PortfolioService {
                 }
             }
 
+            boolean revealed = "revealed".equals(competition.getStatus());
             revealedAssets.add(PortfolioResultDto.RevealedAssetDto.builder()
                     .id(asset.getId().toString())
                     .anonymousName(asset.getAnonymousName())
-                    .realName(asset.getRealName())
-                    .ticker(asset.getTicker())
+                    .realName(revealed ? asset.getRealName() : null)
+                    .ticker(revealed ? asset.getTicker() : null)
                     .type(asset.getType())
                     .sector(asset.getSector())
                     .bondType(asset.getBondType())
@@ -185,12 +189,77 @@ public class PortfolioService {
                 .build();
     }
 
+    @Transactional
+    public void simulateCompetition(Competition competition) {
+        if (!"closed".equals(competition.getStatus())) {
+            throw new IllegalArgumentException("A rodada precisa estar fechada para ser simulada");
+        }
+
+        competition.setStatus("simulating");
+        competitionRepository.save(competition);
+
+        List<Portfolio> portfolios = portfolioRepository.findByCompetitionIdOrderByTotalReturnDesc(competition.getId());
+        for (Portfolio portfolio : portfolios) {
+            List<SimulationEngine.AllocationInput> inputs = new ArrayList<>();
+            for (Allocation allocation : portfolio.getAllocations()) {
+                List<HistoricalQuote> quotes = quoteRepository
+                        .findAllByAssetIdAndDateBetweenOrderByDateAsc(
+                                allocation.getAsset().getId(),
+                                LocalDate.of(competition.getStartYear() - 1, 12, 1),
+                                LocalDate.of(competition.getEndYear(), 12, 31));
+                inputs.add(new SimulationEngine.AllocationInput(
+                        allocation.getAsset().getId(), allocation.getAmountInvested(), quotes));
+            }
+
+            SimulationEngine.SimulationResult result = calculateResult(
+                    portfolio, competition, inputs);
+            portfolio.setTotalReturn(result.totalReturn());
+            portfolio.setFinalValue(result.finalValue());
+        }
+
+        recalculateRanks(competition.getId());
+        competition.setStatus("simulated");
+        competitionRepository.save(competition);
+    }
+
     private void recalculateRanks(UUID competitionId) {
         List<Portfolio> portfolios = portfolioRepository.findByCompetitionIdOrderByTotalReturnDesc(competitionId);
         for (int i = 0; i < portfolios.size(); i++) {
-            portfolios.get(i).setRank(i + 1);
+            Portfolio portfolio = portfolios.get(i);
+            portfolio.setRank(i + 1);
+            
+            User user = portfolio.getUser();
+            BigDecimal totalReturn = portfolio.getTotalReturn();
+            if (totalReturn != null) {
+                int pointsEarned = totalReturn.setScale(0, RoundingMode.HALF_UP)
+                        .intValue();
+                int newScore = Math.max(0, user.getTotalScore() + pointsEarned);
+                user.setTotalScore(newScore);
+                userRepository.save(user);
+            }
         }
         portfolioRepository.saveAll(portfolios);
+    }
+
+    private SimulationEngine.SimulationResult calculateResult(
+            Portfolio portfolio, Competition competition, List<SimulationEngine.AllocationInput> inputs) {
+        if (inputs.stream().allMatch(input -> !input.quotes().isEmpty())) {
+            return simulationEngine.calculate(
+                    competition.getBudget(), inputs, competition.getStartYear(), competition.getEndYear());
+        }
+
+        List<SimulationEngine.SnapshotAllocationInput> snapshotInputs = portfolio.getAllocations().stream()
+                .map(allocation -> new SimulationEngine.SnapshotAllocationInput(
+                        allocation.getAsset().getId(),
+                        allocation.getAmountInvested(),
+                        snapshotRepository.findByAssetIdAndYearBetweenOrderByYearAsc(
+                                allocation.getAsset().getId(),
+                                competition.getStartYear(),
+                                competition.getEndYear())))
+                .toList();
+        return simulationEngine.calculateSnapshots(
+                competition.getBudget(), snapshotInputs,
+                competition.getStartYear(), competition.getEndYear());
     }
 
     private record AllocationData(Asset asset, BigDecimal amount) {}
