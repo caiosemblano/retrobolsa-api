@@ -95,6 +95,17 @@ public class CompetitionAdminController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/quick-simulate")
+    public ResponseEntity<Void> quickSimulate(@PathVariable UUID id) {
+        Competition competition = find(id);
+        competition.setStatus("closed");
+        competitionRepository.save(competition);
+        portfolioService.simulateCompetition(competition);
+        competition.setStatus("revealed");
+        competitionRepository.save(competition);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{id}/simulate")
     public ResponseEntity<Void> simulate(@PathVariable UUID id) {
         portfolioService.simulateCompetition(find(id));
