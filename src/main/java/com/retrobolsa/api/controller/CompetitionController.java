@@ -15,9 +15,18 @@ public class CompetitionController {
 
     private final CompetitionService competitionService;
 
+    /** Retorna a rodada com status "open". Usado durante o período de apostas. */
     @GetMapping("/active")
     public ResponseEntity<CompetitionResponseDto> getActiveCompetition() {
         return ResponseEntity.ok(competitionService.getActiveCompetition());
     }
 
+    /**
+     * Retorna a rodada mais recente independente do status (open, closed, simulated, revealed).
+     * Usado para mostrar o estado atual da competição após o fechamento.
+     */
+    @GetMapping("/latest")
+    public ResponseEntity<CompetitionResponseDto> getLatestCompetition() {
+        return ResponseEntity.ok(competitionService.getLatestCompetition());
+    }
 }

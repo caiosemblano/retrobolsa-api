@@ -24,6 +24,17 @@ public class CompetitionService {
     public CompetitionResponseDto getActiveCompetition() {
         Competition competition = competitionRepository.findByStatus("open")
                 .orElseThrow(() -> new IllegalArgumentException("Nenhuma rodada ativa encontrada"));
+        return buildDto(competition);
+    }
+
+    @Transactional(readOnly = true)
+    public CompetitionResponseDto getLatestCompetition() {
+        Competition competition = competitionRepository.findTopByOrderByRoundNumberDesc()
+                .orElseThrow(() -> new IllegalArgumentException("Nenhuma rodada encontrada"));
+        return buildDto(competition);
+    }
+
+    private CompetitionResponseDto buildDto(Competition competition) {
 
         List<AssetDto> assetDtos = new ArrayList<>();
         for (Asset asset : competition.getAssets()) {
