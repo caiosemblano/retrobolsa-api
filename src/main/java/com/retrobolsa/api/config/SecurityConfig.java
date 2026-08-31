@@ -79,6 +79,8 @@ public class SecurityConfig {
                         authorizeRequests
                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                 .requestMatchers("/api/auth/**", "/api/test/all").permitAll()
+                                // /me exige autenticação; demais rotas de ranking são públicas
+                                .requestMatchers("/api/rankings/me").authenticated()
                                 .requestMatchers("/api/competitions/**", "/api/rankings/**", "/api/articles/**").permitAll()
                                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                                 .anyRequest().authenticated()
