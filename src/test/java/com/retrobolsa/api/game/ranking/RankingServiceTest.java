@@ -82,6 +82,13 @@ class RankingServiceTest {
                 .build();
     }
 
+    private PortfolioRepository.UserPortfolioCount buildCount(UUID userId, long total) {
+        return new PortfolioRepository.UserPortfolioCount() {
+            public UUID getUserId() { return userId; }
+            public long getTotal() { return total; }
+        };
+    }
+
     // =========================================================================
     // getQuinzenalRanking
     // =========================================================================
@@ -251,7 +258,8 @@ class RankingServiceTest {
 
             when(userRepository.findAllByOrderByTotalScoreDescUsernameAsc(any(PageRequest.class)))
                     .thenReturn(List.of(u1, u2, u3));
-            when(portfolioRepository.countByUserId(any())).thenReturn(3L);
+            when(portfolioRepository.countByUserIdIn(anyList())).thenReturn(List.of(
+                    buildCount(u1.getId(), 3L), buildCount(u2.getId(), 3L), buildCount(u3.getId(), 3L)));
 
             List<GlobalRankingResponseDto> result = rankingService.getGlobalRanking(50, 0);
 
@@ -273,7 +281,7 @@ class RankingServiceTest {
 
             when(userRepository.findAllByOrderByTotalScoreDescUsernameAsc(any(PageRequest.class)))
                     .thenReturn(List.of(u1));
-            when(portfolioRepository.countByUserId(any())).thenReturn(1L);
+            when(portfolioRepository.countByUserIdIn(anyList())).thenReturn(List.of(buildCount(u1.getId(), 1L)));
 
             List<GlobalRankingResponseDto> result = rankingService.getGlobalRanking(10, 1);
 
@@ -310,7 +318,7 @@ class RankingServiceTest {
             User u1 = buildUser("eva", 100);
             when(userRepository.findAllByOrderByTotalScoreDescUsernameAsc(any(PageRequest.class)))
                     .thenReturn(List.of(u1));
-            when(portfolioRepository.countByUserId(u1.getId())).thenReturn(5L);
+            when(portfolioRepository.countByUserIdIn(anyList())).thenReturn(List.of(buildCount(u1.getId(), 5L)));
 
             List<GlobalRankingResponseDto> result = rankingService.getGlobalRanking(10, 0);
 
@@ -345,8 +353,9 @@ class RankingServiceTest {
             User u3 = buildUser("carla", 80);
 
             when(userRepository.findByEmail(u2.getEmail())).thenReturn(Optional.of(u2));
-            when(userRepository.findAllByOrderByTotalScoreDescUsernameAsc())
-                    .thenReturn(List.of(u1, u2, u3));
+            when(userRepository.countByTotalScoreGreaterThan(u2.getTotalScore())).thenReturn(1L); // ana (200)
+            when(userRepository.countByTotalScoreAndUsernameLessThan(u2.getTotalScore(), u2.getUsername())).thenReturn(0L);
+            when(userRepository.count()).thenReturn(3L);
             when(portfolioRepository.countByUserId(u2.getId())).thenReturn(2L);
             when(competitionRepository.findByStatus("open")).thenReturn(Optional.empty());
             when(competitionRepository.findTopByStatusInOrderByRoundNumberDesc(anyList()))
@@ -368,8 +377,6 @@ class RankingServiceTest {
             Portfolio p = buildPortfolio(u1, simulated, 2, new BigDecimal("0.10"), new BigDecimal("110000"));
 
             when(userRepository.findByEmail(u1.getEmail())).thenReturn(Optional.of(u1));
-            when(userRepository.findAllByOrderByTotalScoreDescUsernameAsc())
-                    .thenReturn(List.of(u1));
             when(portfolioRepository.countByUserId(u1.getId())).thenReturn(1L);
             when(competitionRepository.findByStatus("open")).thenReturn(Optional.empty());
             when(competitionRepository.findTopByStatusInOrderByRoundNumberDesc(anyList()))
@@ -401,8 +408,6 @@ class RankingServiceTest {
                     .build();
 
             when(userRepository.findByEmail(u1.getEmail())).thenReturn(Optional.of(u1));
-            when(userRepository.findAllByOrderByTotalScoreDescUsernameAsc())
-                    .thenReturn(List.of(u1, u2));
             when(portfolioRepository.countByUserId(u1.getId())).thenReturn(1L);
             when(competitionRepository.findByStatus("open")).thenReturn(Optional.of(open));
             when(portfolioRepository.findByUserIdAndCompetitionId(u1.getId(), open.getId()))

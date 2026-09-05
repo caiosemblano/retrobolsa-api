@@ -62,9 +62,14 @@ public class PortfolioService {
         BigDecimal totalAllocated = BigDecimal.ZERO;
         List<SimulationEngine.AllocationInput> simulationInputs = new ArrayList<>();
         List<AllocationData> allocationDataList = new ArrayList<>();
+        Set<UUID> seenAssetIds = new HashSet<>();
 
         for (SubmitPortfolioRequestDto.AllocationRequestDto alloc : request.getAllocations()) {
             UUID assetId = UUID.fromString(alloc.getAssetId());
+
+            if (!seenAssetIds.add(assetId)) {
+                throw new IllegalArgumentException("Ativo " + alloc.getAssetId() + " foi informado mais de uma vez na submissao");
+            }
 
             if (!competitionAssetIds.contains(assetId)) {
                 throw new IllegalArgumentException("Ativo " + alloc.getAssetId() + " nao pertence a esta rodada");
@@ -199,16 +204,31 @@ public class PortfolioService {
         competitionRepository.save(competition);
 
         List<Portfolio> portfolios = portfolioRepository.findByCompetitionIdOrderByTotalReturnDesc(competition.getId());
+
+        Set<UUID> allAssetIds = new HashSet<>();
+        for (Portfolio portfolio : portfolios) {
+            for (Allocation allocation : portfolio.getAllocations()) {
+                allAssetIds.add(allocation.getAsset().getId());
+            }
+        }
+        Map<UUID, List<HistoricalQuote>> quotesByAsset = new HashMap<>();
+        if (!allAssetIds.isEmpty()) {
+            List<HistoricalQuote> allQuotes = quoteRepository.findAllByAssetIdInAndDateBetweenOrderByAssetIdAscDateAsc(
+                    allAssetIds,
+                    LocalDate.of(competition.getStartYear() - 1, 12, 1),
+                    LocalDate.of(competition.getEndYear(), 12, 31));
+            for (HistoricalQuote quote : allQuotes) {
+                quotesByAsset.computeIfAbsent(quote.getAsset().getId(), key -> new ArrayList<>()).add(quote);
+            }
+        }
+
         for (Portfolio portfolio : portfolios) {
             List<SimulationEngine.AllocationInput> inputs = new ArrayList<>();
             for (Allocation allocation : portfolio.getAllocations()) {
-                List<HistoricalQuote> quotes = quoteRepository
-                        .findAllByAssetIdAndDateBetweenOrderByDateAsc(
-                                allocation.getAsset().getId(),
-                                LocalDate.of(competition.getStartYear() - 1, 12, 1),
-                                LocalDate.of(competition.getEndYear(), 12, 31));
+                UUID assetId = allocation.getAsset().getId();
+                List<HistoricalQuote> quotes = quotesByAsset.getOrDefault(assetId, List.of());
                 inputs.add(new SimulationEngine.AllocationInput(
-                        allocation.getAsset().getId(), allocation.getAmountInvested(), quotes));
+                        assetId, allocation.getAmountInvested(), quotes));
             }
 
             SimulationEngine.SimulationResult result = calculateResult(

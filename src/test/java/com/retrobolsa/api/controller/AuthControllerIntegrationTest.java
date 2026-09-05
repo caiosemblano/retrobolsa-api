@@ -9,17 +9,9 @@ import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Optional;
 
@@ -33,17 +25,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * de rotas via JWT), rodando contra um Postgres real via Testcontainers.
  * <p>
  * Como não ativamos o profile "test", o Flyway roda de verdade aqui,
- * aplicando as migrations reais (V1-V4) contra o banco do container —
+ * aplicando as migrations reais contra o banco do container —
  * diferente dos testes que usam H2, isso valida o schema de produção.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@Testcontainers
-class AuthControllerIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16-alpine");
+class AuthControllerIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -226,6 +211,27 @@ class AuthControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void deveBloquearLoginApos5TentativasEm1Minuto() throws Exception {
+        LoginRequest request = new LoginRequest();
+        request.setEmail("bruteforce@retrobolsa.com");
+        request.setSenha("senhaErrada123");
+        String requestJson = objectMapper.writeValueAsString(request);
+
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestJson))
+                    .andExpect(status().isBadRequest());
+        }
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.erro", containsString("Muitas tentativas")));
     }
 
     // ---------------------------------------------------------------

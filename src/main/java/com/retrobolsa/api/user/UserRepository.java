@@ -19,4 +19,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     /** Retorna usuários ordenados por totalScore desc e username asc com suporte a paginação/top-N. */
     List<User> findAllByOrderByTotalScoreDescUsernameAsc(Pageable pageable);
+
+    /** Quantos usuários têm score estritamente maior (usado para calcular a posição global sem carregar a tabela toda). */
+    long countByTotalScoreGreaterThan(int totalScore);
+
+    /** Desempate: quantos usuários com o mesmo score vêm antes por ordem alfabética de username. */
+    long countByTotalScoreAndUsernameLessThan(int totalScore, String username);
 }

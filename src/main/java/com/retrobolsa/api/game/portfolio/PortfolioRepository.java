@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -54,4 +55,16 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
 
     /** Conta quantas competições um usuário participou. */
     long countByUserId(UUID userId);
+
+    /**
+     * Conta competições jogadas por vários usuários de uma vez (evita N+1 no
+     * ranking global, que antes chamava {@link #countByUserId} por usuário da página).
+     */
+    @Query("SELECT p.user.id AS userId, COUNT(p) AS total FROM Portfolio p WHERE p.user.id IN :userIds GROUP BY p.user.id")
+    List<UserPortfolioCount> countByUserIdIn(@Param("userIds") Collection<UUID> userIds);
+
+    interface UserPortfolioCount {
+        UUID getUserId();
+        long getTotal();
+    }
 }

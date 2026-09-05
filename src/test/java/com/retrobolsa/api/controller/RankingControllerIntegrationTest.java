@@ -450,10 +450,12 @@ class RankingControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("retorna 401 quando chamado sem autenticação (rota sem type)")
-        void deveNegarAcessoSemAutenticacaoRotaSimples() throws Exception {
+        @DisplayName("permite acesso sem autenticação (rota sem type é pública)")
+        void devePermitirAcessoSemAutenticacaoRotaSimples() throws Exception {
+            // /api/rankings é pública (apenas /api/rankings/me exige autenticação).
             mockMvc.perform(get("/api/rankings").param("roundNumber", "1"))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$").isArray());
         }
     }
 }

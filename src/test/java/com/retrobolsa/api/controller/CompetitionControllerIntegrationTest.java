@@ -111,9 +111,16 @@ class CompetitionControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void deveNegarAcessoSemAutenticacao() throws Exception {
+    void devePermitirAcessoSemAutenticacao() throws Exception {
+        // /api/competitions/active é publica (commit 66edfaa) para permitir que
+        // visitantes nao autenticados vejam a rodada ativa antes de se cadastrar.
+        Asset acao = criarAsset("Ação Anônima 1", "stock", "Financeiro");
+        criarSnapshot(acao, START_YEAR, new BigDecimal("12.50"), new BigDecimal("0.10"));
+        criarCompeticaoAberta(1, List.of(acao), new BigDecimal("100000.00"));
+
         mockMvc.perform(get("/api/competitions/active"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.round").value(1));
     }
 
     @Test

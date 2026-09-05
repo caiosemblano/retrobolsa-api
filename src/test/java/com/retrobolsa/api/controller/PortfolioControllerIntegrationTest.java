@@ -216,6 +216,27 @@ class PortfolioControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void deveRejeitarQuandoAtivoDuplicadoNaMesmaSubmissao() throws Exception {
+        Asset ativo1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        Competition competicao = criarCompeticaoAberta(1, List.of(ativo1));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+
+        var request = requestComAlocacoes(competicao.getId(),
+                alocacao(ativo1.getId(), new BigDecimal("20000.00")),
+                alocacao(ativo1.getId(), new BigDecimal("20000.00")));
+
+        mockMvc.perform(post("/api/portfolios")
+                        .header("Authorization", "Bearer " + gerarToken(usuario))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro", containsString("mais de uma vez")));
+
+        assertThat(portfolioRepository.findByUserIdAndCompetitionId(usuario.getId(), competicao.getId()))
+                .isEmpty();
+    }
+
+    @Test
     void deveRejeitarQuandoValorAlocadoNaoEPositivo() throws Exception {
         Asset ativo1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
         Competition competicao = criarCompeticaoAberta(1, List.of(ativo1));
@@ -278,6 +299,14 @@ class PortfolioControllerIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated());
+
+        // O resultado só é exposto (com nomes reais) após a rodada ser encerrada e revelada.
+        competicao.setStatus("revealed");
+        competitionRepository.save(competicao);
+        var portfolio = portfolioRepository.findByUserIdAndCompetitionId(usuario.getId(), competicao.getId())
+                .orElseThrow();
+        portfolio.setRank(1);
+        portfolioRepository.save(portfolio);
 
         mockMvc.perform(get("/api/portfolios/my-last-result")
                         .header("Authorization", "Bearer " + token))

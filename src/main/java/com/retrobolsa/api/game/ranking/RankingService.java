@@ -16,8 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -136,10 +138,17 @@ public class RankingService {
         // Offset para numerar o rank corretamente em páginas subsequentes
         int rankOffset = pageNumber * pageSize;
 
+        List<UUID> userIds = users.stream().map(User::getId).toList();
+        Map<UUID, Long> competitionsPlayedByUser = userIds.isEmpty() ? Map.of()
+                : portfolioRepository.countByUserIdIn(userIds).stream()
+                        .collect(Collectors.toMap(
+                                PortfolioRepository.UserPortfolioCount::getUserId,
+                                PortfolioRepository.UserPortfolioCount::getTotal));
+
         List<GlobalRankingResponseDto> ranking = new ArrayList<>();
         for (int i = 0; i < users.size(); i++) {
             User user = users.get(i);
-            int competitionsPlayed = (int) portfolioRepository.countByUserId(user.getId());
+            int competitionsPlayed = competitionsPlayedByUser.getOrDefault(user.getId(), 0L).intValue();
             ranking.add(GlobalRankingResponseDto.builder()
                     .userId(user.getId())
                     .username(user.getUsername())
@@ -167,10 +176,11 @@ public class RankingService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado: " + email));
 
-        // Ranking global: calcula posição contando usuários com score maior
-        List<User> allUsers = userRepository.findAllByOrderByTotalScoreDescUsernameAsc();
-        int globalRank = computeGlobalRank(allUsers, user);
-        long totalGlobalPlayers = allUsers.size();
+        // Ranking global: posição calculada via contagem indexada, sem carregar a tabela toda
+        long usersAhead = userRepository.countByTotalScoreGreaterThan(user.getTotalScore())
+                + userRepository.countByTotalScoreAndUsernameLessThan(user.getTotalScore(), user.getUsername());
+        int globalRank = (int) usersAhead + 1;
+        long totalGlobalPlayers = userRepository.count();
         int competitionsPlayed = (int) portfolioRepository.countByUserId(user.getId());
 
         // Rodada ativa: tenta open primeiro, depois última finalizada
@@ -225,15 +235,6 @@ public class RankingService {
     // -------------------------------------------------------------------------
     // Helpers Privados
     // -------------------------------------------------------------------------
-
-    private int computeGlobalRank(List<User> sortedUsers, User target) {
-        for (int i = 0; i < sortedUsers.size(); i++) {
-            if (sortedUsers.get(i).getId().equals(target.getId())) {
-                return i + 1;
-            }
-        }
-        return sortedUsers.size() + 1;
-    }
 
     private RankingResponseDto toRankingResponse(Portfolio portfolio, String roundStatus) {
         return RankingResponseDto.builder()

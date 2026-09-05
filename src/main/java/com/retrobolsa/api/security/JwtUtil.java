@@ -3,11 +3,13 @@ package com.retrobolsa.api.security;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+@Slf4j
 @Component
 public class JwtUtil {
     @Value("${jwt.secret}")
@@ -47,15 +49,15 @@ public class JwtUtil {
             Jwts.parser().setSigningKey(key).build().parseClaimsJws(token);
             return true;
         } catch (SecurityException e) {
-            System.out.println("Assinatura JWT inválida: " + e.getMessage());
+            log.warn("Assinatura JWT inválida: {}", e.getMessage());
         } catch (MalformedJwtException e) {
-            System.out.println("Token JWT inválido: " + e.getMessage());
+            log.warn("Token JWT inválido: {}", e.getMessage());
         } catch (ExpiredJwtException e) {
-            System.out.println("Token JWT expirado: " + e.getMessage());
+            log.warn("Token JWT expirado: {}", e.getMessage());
         } catch (UnsupportedJwtException e) {
-            System.out.println("Token JWT não suportado: " + e.getMessage());
+            log.warn("Token JWT não suportado: {}", e.getMessage());
         } catch (IllegalArgumentException e) {
-            System.out.println("A string de declarações JWT está vazia.: " + e.getMessage());
+            log.warn("A string de declarações JWT está vazia: {}", e.getMessage());
         }
         return false;
     }
