@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -79,7 +81,7 @@ public class CompetitionService {
                 .id(competition.getId().toString())
                 .round(competition.getRoundNumber())
                 .status(competition.getStatus())
-                .daysLeft(competition.getDaysLeft())
+                .daysLeft(computeDaysLeft(competition))
                 .budget(competition.getBudget())
                 .scenarioTitle(competition.getScenarioTitle())
                 .scenarioDescription(competition.getScenarioDescription())
@@ -89,6 +91,18 @@ public class CompetitionService {
                 .assets(assetDtos)
                 .build();
     }
+    /**
+     * daysLeft é calculado a partir de endsAt a cada leitura (em vez de depender
+     * de um valor gravado uma vez na criação), para nunca ficar desatualizado.
+     */
+    private Integer computeDaysLeft(Competition competition) {
+        if (!"open".equals(competition.getStatus()) || competition.getEndsAt() == null) {
+            return competition.getDaysLeft();
+        }
+        long days = Duration.between(LocalDateTime.now(), competition.getEndsAt()).toDays();
+        return (int) Math.max(0, days);
+    }
+
     @Transactional
     public void nextRound() {
         Competition current = competitionRepository.findByStatus("open")
