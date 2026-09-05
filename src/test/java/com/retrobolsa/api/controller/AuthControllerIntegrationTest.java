@@ -72,6 +72,21 @@ class AuthControllerIntegrationTest extends AbstractIntegrationTest {
         // senha nunca deve ser persistida em texto plano
         assertThat(salvo.get().getPasswordHash()).isNotEqualTo(SENHA_PADRAO);
         assertThat(passwordEncoder.matches(SENHA_PADRAO, salvo.get().getPasswordHash())).isTrue();
+        assertThat(salvo.get().getRole()).isEqualTo("PLAYER");
+    }
+
+    @Test
+    void deveRegistrarComoAdminQuandoEmailForDoDominioAdmin() throws Exception {
+        RegisterRequest request = novoRegisterRequest("retroteste@admin.com", "adminteste", SENHA_PADRAO, SENHA_PADRAO);
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+
+        Optional<User> salvo = userRepository.findByEmail("retroteste@admin.com");
+        assertThat(salvo).isPresent();
+        assertThat(salvo.get().getRole()).isEqualTo("ADMIN");
     }
 
     @Test
