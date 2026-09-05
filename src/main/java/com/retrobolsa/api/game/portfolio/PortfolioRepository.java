@@ -21,7 +21,17 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
 
     List<Portfolio> findByCompetitionRoundNumberOrderByRankAsc(int roundNumber);
 
-    List<Portfolio> findByUserIdOrderByRankAsc(UUID userId);
+    /**
+     * Histórico de portfólios do usuário. O {@code JOIN FETCH} da competição evita
+     * um N+1 no perfil, que lê roundNumber/scenarioTitle de cada portfólio.
+     */
+    @Query("""
+            SELECT p FROM Portfolio p
+            JOIN FETCH p.competition
+            WHERE p.user.id = :userId
+            ORDER BY p.rank ASC
+            """)
+    List<Portfolio> findByUserIdOrderByRankAsc(@Param("userId") UUID userId);
 
     /**
      * Busca portfólios de uma competição ordenados por critérios de desempate:
@@ -52,6 +62,25 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
               p.submittedAt ASC
             """)
     List<Portfolio> findByRoundNumberOrderByRankThenTieBreak(@Param("roundNumber") int roundNumber);
+
+    /**
+     * Portfólios já simulados dentro de uma faixa de rodadas (uma temporada),
+     * excluindo contas administrativas. Ordenados por rodada para que a pontuação
+     * da temporada seja acumulada na mesma ordem cronológica do score vitalício.
+     */
+    @Query("""
+            SELECT p FROM Portfolio p
+            JOIN FETCH p.user u
+            WHERE p.competition.roundNumber BETWEEN :start AND :end
+              AND p.competition.status IN :statuses
+              AND u.role <> :adminRole
+            ORDER BY p.competition.roundNumber ASC
+            """)
+    List<Portfolio> findForSeasonRanking(
+            @Param("start") int start,
+            @Param("end") int end,
+            @Param("statuses") Collection<String> statuses,
+            @Param("adminRole") String adminRole);
 
     /** Conta quantas competições um usuário participou. */
     long countByUserId(UUID userId);

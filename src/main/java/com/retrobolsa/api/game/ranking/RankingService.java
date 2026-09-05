@@ -4,17 +4,23 @@ import com.retrobolsa.api.game.competition.Competition;
 import com.retrobolsa.api.game.competition.CompetitionRepository;
 import com.retrobolsa.api.game.dto.GlobalRankingResponseDto;
 import com.retrobolsa.api.game.dto.RankingResponseDto;
+import com.retrobolsa.api.game.dto.SeasonInfoDto;
 import com.retrobolsa.api.game.dto.UserRankSummaryDto;
 import com.retrobolsa.api.game.portfolio.Portfolio;
 import com.retrobolsa.api.game.portfolio.PortfolioRepository;
+import com.retrobolsa.api.game.portfolio.ScoringCalculator;
 import com.retrobolsa.api.user.User;
 import com.retrobolsa.api.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,12 +33,17 @@ public class RankingService {
 
     private static final List<String> FINISHED_STATUSES = List.of("simulated", "revealed");
     private static final int DEFAULT_PAGE_SIZE = 50;
+    private static final int DEFAULT_SEASON_SIZE = 4;
     /** Contas administrativas não são jogadores reais e não devem aparecer em nenhum ranking. */
     private static final String ADMIN_ROLE = "ADMIN";
 
     private final PortfolioRepository portfolioRepository;
     private final UserRepository userRepository;
     private final CompetitionRepository competitionRepository;
+
+    /** Quantas rodadas compõem uma temporada. */
+    @Value("${retrobolsa.ranking.season-size:4}")
+    private int seasonSize = DEFAULT_SEASON_SIZE;
 
     // -------------------------------------------------------------------------
     // Ranking Quinzenal / Rodada Ativa
@@ -160,6 +171,93 @@ public class RankingService {
                     .build());
         }
         return ranking;
+    }
+
+    // -------------------------------------------------------------------------
+    // Ranking de Temporada
+    // -------------------------------------------------------------------------
+
+    /**
+     * Retorna os limites da temporada atual. Uma temporada agrupa
+     * {@code retrobolsa.ranking.season-size} rodadas consecutivas: com o padrão de 4,
+     * as rodadas 1-4 formam a temporada 1, as rodadas 5-8 a temporada 2, e assim por
+     * diante. A temporada atual é a que contém a rodada mais recente cadastrada.
+     */
+    @Transactional(readOnly = true)
+    public SeasonInfoDto getCurrentSeasonInfo() {
+        int size = seasonSize > 0 ? seasonSize : DEFAULT_SEASON_SIZE;
+        int latestRound = competitionRepository.findTopByOrderByRoundNumberDesc()
+                .map(Competition::getRoundNumber)
+                .orElse(1);
+        int seasonNumber = ((Math.max(latestRound, 1) - 1) / size) + 1;
+        return SeasonInfoDto.builder()
+                .seasonNumber(seasonNumber)
+                .roundStart((seasonNumber - 1) * size + 1)
+                .roundEnd(seasonNumber * size)
+                .build();
+    }
+
+    /**
+     * Retorna o ranking da temporada atual: apenas as rodadas já simuladas dentro da
+     * faixa da temporada contam, e a pontuação é acumulada do zero (diferente do
+     * ranking global, que é vitalício). A soma reproduz a mesma regra do score
+     * vitalício — pontos por rodada com piso em zero — só que reiniciada a cada
+     * temporada.
+     *
+     * @param limit número máximo de entradas por página (padrão: 50, máximo: 200)
+     * @param page  número da página, base 0 (padrão: 0)
+     */
+    @Transactional(readOnly = true)
+    public List<GlobalRankingResponseDto> getSeasonRanking(Integer limit, Integer page) {
+        SeasonInfoDto season = getCurrentSeasonInfo();
+        List<Portfolio> portfolios = portfolioRepository.findForSeasonRanking(
+                season.getRoundStart(), season.getRoundEnd(), FINISHED_STATUSES, ADMIN_ROLE);
+
+        Map<UUID, SeasonScore> scoresByUser = new LinkedHashMap<>();
+        for (Portfolio portfolio : portfolios) {
+            User user = portfolio.getUser();
+            scoresByUser.computeIfAbsent(user.getId(), id -> new SeasonScore(user))
+                    .add(portfolio.getTotalReturn());
+        }
+
+        List<SeasonScore> ordered = scoresByUser.values().stream()
+                .sorted(Comparator.comparingInt((SeasonScore s) -> s.score).reversed()
+                        .thenComparing(s -> s.user.getUsername()))
+                .toList();
+
+        int pageSize = (limit == null || limit <= 0) ? DEFAULT_PAGE_SIZE : Math.min(limit, 200);
+        int pageNumber = (page == null || page < 0) ? 0 : page;
+        int from = Math.min(pageNumber * pageSize, ordered.size());
+        int to = Math.min(from + pageSize, ordered.size());
+
+        List<GlobalRankingResponseDto> ranking = new ArrayList<>();
+        for (int i = from; i < to; i++) {
+            SeasonScore entry = ordered.get(i);
+            ranking.add(GlobalRankingResponseDto.builder()
+                    .userId(entry.user.getId())
+                    .username(entry.user.getUsername())
+                    .rank(i + 1)
+                    .totalScore(entry.score)
+                    .competitionsPlayed(entry.roundsPlayed)
+                    .build());
+        }
+        return ranking;
+    }
+
+    /** Acumulador de pontos de um usuário dentro da temporada. */
+    private static final class SeasonScore {
+        private final User user;
+        private int score;
+        private int roundsPlayed;
+
+        private SeasonScore(User user) {
+            this.user = user;
+        }
+
+        private void add(BigDecimal totalReturn) {
+            score = Math.max(0, score + ScoringCalculator.pointsFromReturn(totalReturn));
+            roundsPlayed++;
+        }
     }
 
     // -------------------------------------------------------------------------

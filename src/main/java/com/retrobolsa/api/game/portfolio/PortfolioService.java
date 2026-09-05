@@ -251,8 +251,7 @@ public class PortfolioService {
             User user = portfolio.getUser();
             BigDecimal totalReturn = portfolio.getTotalReturn();
             if (totalReturn != null) {
-                int pointsEarned = totalReturn.setScale(0, RoundingMode.HALF_UP)
-                        .intValue();
+                int pointsEarned = ScoringCalculator.pointsFromReturn(totalReturn);
                 int newScore = Math.max(0, user.getTotalScore() + pointsEarned);
                 user.setTotalScore(newScore);
                 userRepository.save(user);

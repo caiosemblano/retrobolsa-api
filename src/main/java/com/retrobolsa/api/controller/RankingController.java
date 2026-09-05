@@ -2,6 +2,7 @@ package com.retrobolsa.api.controller;
 
 import com.retrobolsa.api.game.dto.GlobalRankingResponseDto;
 import com.retrobolsa.api.game.dto.RankingResponseDto;
+import com.retrobolsa.api.game.dto.SeasonInfoDto;
 import com.retrobolsa.api.game.dto.UserRankSummaryDto;
 import com.retrobolsa.api.game.ranking.RankingService;
 import lombok.RequiredArgsConstructor;
@@ -19,10 +20,11 @@ import java.util.UUID;
  * <ul>
  *   <li>{@code GET /api/rankings?type=global}     — ranking global paginado</li>
  *   <li>{@code GET /api/rankings?type=quinzenal}  — ranking da rodada ativa/mais recente</li>
- *   <li>{@code GET /api/rankings?type=season}     — alias para global (a implementar por temporada)</li>
+ *   <li>{@code GET /api/rankings?type=season}     — ranking da temporada atual</li>
  *   <li>{@code GET /api/rankings?competitionId=X} — ranking de rodada específica por ID</li>
  *   <li>{@code GET /api/rankings?roundNumber=N}   — ranking de rodada específica por número</li>
  *   <li>{@code GET /api/rankings/global}          — ranking global dedicado com paginação</li>
+ *   <li>{@code GET /api/rankings/season/current}  — número e faixa de rodadas da temporada atual</li>
  *   <li>{@code GET /api/rankings/me}              — posição do usuário autenticado</li>
  * </ul>
  */
@@ -54,8 +56,7 @@ public class RankingController {
         }
 
         if ("season".equalsIgnoreCase(type)) {
-            // Por ora season é equivalente ao global; futuramente filtrar por temporada
-            return ResponseEntity.ok(rankingService.getGlobalRanking(limit, page));
+            return ResponseEntity.ok(rankingService.getSeasonRanking(limit, page));
         }
 
         // Sem type → ranking de rodada específica (requer competitionId ou roundNumber)
@@ -72,6 +73,15 @@ public class RankingController {
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Integer page) {
         return ResponseEntity.ok(rankingService.getGlobalRanking(limit, page));
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /api/rankings/season/current (limites da temporada atual)
+    // -------------------------------------------------------------------------
+
+    @GetMapping("/season/current")
+    public ResponseEntity<SeasonInfoDto> getCurrentSeason() {
+        return ResponseEntity.ok(rankingService.getCurrentSeasonInfo());
     }
 
     // -------------------------------------------------------------------------

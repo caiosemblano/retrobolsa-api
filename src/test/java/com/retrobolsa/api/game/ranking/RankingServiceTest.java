@@ -4,6 +4,7 @@ import com.retrobolsa.api.game.competition.Competition;
 import com.retrobolsa.api.game.competition.CompetitionRepository;
 import com.retrobolsa.api.game.dto.GlobalRankingResponseDto;
 import com.retrobolsa.api.game.dto.RankingResponseDto;
+import com.retrobolsa.api.game.dto.SeasonInfoDto;
 import com.retrobolsa.api.game.dto.UserRankSummaryDto;
 import com.retrobolsa.api.game.portfolio.Portfolio;
 import com.retrobolsa.api.game.portfolio.PortfolioRepository;
@@ -420,6 +421,160 @@ class RankingServiceTest {
 
             assertThat(summary.getActiveRoundRank()).isEqualTo(2);
             assertThat(summary.getActiveRoundStatus()).isEqualTo("open");
+        }
+    }
+
+    // =========================================================================
+    // Temporada
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getCurrentSeasonInfo()")
+    class GetCurrentSeasonInfo {
+
+        @Test
+        @DisplayName("agrupa as 4 primeiras rodadas na temporada 1")
+        void devePosicionarPrimeirasRodadasNaTemporada1() {
+            when(competitionRepository.findTopByOrderByRoundNumberDesc())
+                    .thenReturn(Optional.of(buildCompetition(4, "simulated")));
+
+            SeasonInfoDto info = rankingService.getCurrentSeasonInfo();
+
+            assertThat(info.getSeasonNumber()).isEqualTo(1);
+            assertThat(info.getRoundStart()).isEqualTo(1);
+            assertThat(info.getRoundEnd()).isEqualTo(4);
+        }
+
+        @Test
+        @DisplayName("vira para a temporada 2 na rodada 5")
+        void deveVirarTemporadaNaRodada5() {
+            when(competitionRepository.findTopByOrderByRoundNumberDesc())
+                    .thenReturn(Optional.of(buildCompetition(5, "open")));
+
+            SeasonInfoDto info = rankingService.getCurrentSeasonInfo();
+
+            assertThat(info.getSeasonNumber()).isEqualTo(2);
+            assertThat(info.getRoundStart()).isEqualTo(5);
+            assertThat(info.getRoundEnd()).isEqualTo(8);
+        }
+
+        @Test
+        @DisplayName("assume temporada 1 quando nenhuma rodada foi cadastrada")
+        void deveAssumirTemporada1SemRodadas() {
+            when(competitionRepository.findTopByOrderByRoundNumberDesc()).thenReturn(Optional.empty());
+
+            SeasonInfoDto info = rankingService.getCurrentSeasonInfo();
+
+            assertThat(info.getSeasonNumber()).isEqualTo(1);
+            assertThat(info.getRoundStart()).isEqualTo(1);
+            assertThat(info.getRoundEnd()).isEqualTo(4);
+        }
+    }
+
+    @Nested
+    @DisplayName("getSeasonRanking()")
+    class GetSeasonRanking {
+
+        @Test
+        @DisplayName("soma os pontos das rodadas da temporada por usuário e ordena por pontuação")
+        void deveSomarPontosDaTemporada() {
+            Competition round5 = buildCompetition(5, "simulated");
+            Competition round6 = buildCompetition(6, "simulated");
+            User ana = buildUser("ana", 999);   // totalScore vitalício é ignorado na temporada
+            User beto = buildUser("beto", 999);
+
+            when(competitionRepository.findTopByOrderByRoundNumberDesc())
+                    .thenReturn(Optional.of(round6));
+            when(portfolioRepository.findForSeasonRanking(eq(5), eq(8), anyList(), eq("ADMIN")))
+                    .thenReturn(List.of(
+                            buildPortfolio(ana, round5, 2, new BigDecimal("10.40"), null),
+                            buildPortfolio(beto, round5, 1, new BigDecimal("30.00"), null),
+                            buildPortfolio(ana, round6, 1, new BigDecimal("25.60"), null)));
+
+            List<GlobalRankingResponseDto> result = rankingService.getSeasonRanking(null, null);
+
+            // ana: 10 + 26 = 36 pontos em 2 rodadas; beto: 30 pontos em 1 rodada
+            assertThat(result).hasSize(2);
+            assertThat(result.get(0).getUsername()).isEqualTo("ana");
+            assertThat(result.get(0).getRank()).isEqualTo(1);
+            assertThat(result.get(0).getTotalScore()).isEqualTo(36);
+            assertThat(result.get(0).getCompetitionsPlayed()).isEqualTo(2);
+            assertThat(result.get(1).getUsername()).isEqualTo("beto");
+            assertThat(result.get(1).getRank()).isEqualTo(2);
+            assertThat(result.get(1).getTotalScore()).isEqualTo(30);
+        }
+
+        @Test
+        @DisplayName("aplica piso zero na pontuação da temporada")
+        void deveAplicarPisoZero() {
+            Competition round1 = buildCompetition(1, "simulated");
+            Competition round2 = buildCompetition(2, "simulated");
+            User ana = buildUser("ana", 500);
+
+            when(competitionRepository.findTopByOrderByRoundNumberDesc())
+                    .thenReturn(Optional.of(round2));
+            when(portfolioRepository.findForSeasonRanking(eq(1), eq(4), anyList(), eq("ADMIN")))
+                    .thenReturn(List.of(
+                            buildPortfolio(ana, round1, 1, new BigDecimal("5.00"), null),
+                            buildPortfolio(ana, round2, 1, new BigDecimal("-40.00"), null)));
+
+            List<GlobalRankingResponseDto> result = rankingService.getSeasonRanking(null, null);
+
+            assertThat(result.get(0).getTotalScore()).isZero();
+        }
+
+        @Test
+        @DisplayName("desempata por username quando a pontuação é igual")
+        void deveDesempatarPorUsername() {
+            Competition round1 = buildCompetition(1, "simulated");
+            User bia = buildUser("bia", 0);
+            User ana = buildUser("ana", 0);
+
+            when(competitionRepository.findTopByOrderByRoundNumberDesc())
+                    .thenReturn(Optional.of(round1));
+            when(portfolioRepository.findForSeasonRanking(eq(1), eq(4), anyList(), eq("ADMIN")))
+                    .thenReturn(List.of(
+                            buildPortfolio(bia, round1, 1, new BigDecimal("10.00"), null),
+                            buildPortfolio(ana, round1, 2, new BigDecimal("10.00"), null)));
+
+            List<GlobalRankingResponseDto> result = rankingService.getSeasonRanking(null, null);
+
+            assertThat(result.get(0).getUsername()).isEqualTo("ana");
+            assertThat(result.get(1).getUsername()).isEqualTo("bia");
+        }
+
+        @Test
+        @DisplayName("pagina o resultado mantendo o rank absoluto")
+        void devePaginarMantendoRankAbsoluto() {
+            Competition round1 = buildCompetition(1, "simulated");
+            User ana = buildUser("ana", 0);
+            User beto = buildUser("beto", 0);
+            User carla = buildUser("carla", 0);
+
+            when(competitionRepository.findTopByOrderByRoundNumberDesc())
+                    .thenReturn(Optional.of(round1));
+            when(portfolioRepository.findForSeasonRanking(eq(1), eq(4), anyList(), eq("ADMIN")))
+                    .thenReturn(List.of(
+                            buildPortfolio(ana, round1, 1, new BigDecimal("30.00"), null),
+                            buildPortfolio(beto, round1, 2, new BigDecimal("20.00"), null),
+                            buildPortfolio(carla, round1, 3, new BigDecimal("10.00"), null)));
+
+            List<GlobalRankingResponseDto> result = rankingService.getSeasonRanking(2, 1);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getUsername()).isEqualTo("carla");
+            assertThat(result.get(0).getRank()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("retorna lista vazia quando nenhuma rodada da temporada foi simulada")
+        void deveRetornarVazioSemRodadasSimuladas() {
+            when(competitionRepository.findTopByOrderByRoundNumberDesc())
+                    .thenReturn(Optional.of(buildCompetition(2, "open")));
+            when(portfolioRepository.findForSeasonRanking(eq(1), eq(4), anyList(), eq("ADMIN")))
+                    .thenReturn(List.of());
+
+            assertThat(rankingService.getSeasonRanking(null, null)).isEmpty();
         }
     }
 }

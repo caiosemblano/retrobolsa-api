@@ -458,4 +458,86 @@ class RankingControllerIntegrationTest extends AbstractIntegrationTest {
                     .andExpect(jsonPath("$").isArray());
         }
     }
+
+    // =========================================================================
+    // Temporada (type=season e /season/current)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Ranking de temporada")
+    class SeasonRanking {
+
+        @Test
+        @DisplayName("soma apenas as rodadas da temporada atual, ignorando as anteriores")
+        void deveConsiderarApenasRodadasDaTemporadaAtual() throws Exception {
+            Competition rodada4 = criarCompeticao(4, "simulated"); // temporada 1
+            Competition rodada5 = criarCompeticao(5, "simulated"); // temporada 2 (atual)
+            Competition rodada6 = criarCompeticao(6, "simulated"); // temporada 2 (atual)
+            User ana = criarUsuario("ana", "ana@retrobolsa.com", 500);
+            User bruno = criarUsuario("bruno", "bruno@retrobolsa.com", 500);
+
+            criarPortfolio(ana, rodada4, 1, "90.00", "190000.00");   // temporada anterior: ignorado
+            criarPortfolio(ana, rodada5, 2, "10.40", "110400.00");   // 10 pontos
+            criarPortfolio(ana, rodada6, 1, "25.60", "125600.00");   // 26 pontos
+            criarPortfolio(bruno, rodada5, 1, "30.00", "130000.00"); // 30 pontos
+
+            mockMvc.perform(get("/api/rankings").param("type", "season"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$", hasSize(2)))
+                    .andExpect(jsonPath("$[0].username").value("ana"))
+                    .andExpect(jsonPath("$[0].rank").value(1))
+                    .andExpect(jsonPath("$[0].totalScore").value(36))
+                    .andExpect(jsonPath("$[0].competitionsPlayed").value(2))
+                    .andExpect(jsonPath("$[1].username").value("bruno"))
+                    .andExpect(jsonPath("$[1].totalScore").value(30));
+        }
+
+        @Test
+        @DisplayName("ignora rodadas ainda não simuladas e contas ADMIN")
+        void deveIgnorarRodadasAbertasEAdmins() throws Exception {
+            Competition simulada = criarCompeticao(1, "simulated");
+            Competition aberta = criarCompeticao(2, "open");
+            User ana = criarUsuario("ana", "ana@retrobolsa.com", 0);
+            User admin = userRepository.save(User.builder()
+                    .username("Administrador")
+                    .email("admin@admin.com")
+                    .passwordHash(passwordEncoder.encode("senha123"))
+                    .role("ADMIN")
+                    .totalScore(999)
+                    .build());
+
+            criarPortfolio(ana, simulada, 1, "20.00", "120000.00");
+            criarPortfolio(ana, aberta, null, null, null);
+            criarPortfolio(admin, simulada, 2, "80.00", "180000.00");
+
+            mockMvc.perform(get("/api/rankings").param("type", "season"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$", hasSize(1)))
+                    .andExpect(jsonPath("$[0].username").value("ana"))
+                    .andExpect(jsonPath("$[0].totalScore").value(20))
+                    .andExpect(jsonPath("$[0].competitionsPlayed").value(1));
+        }
+
+        @Test
+        @DisplayName("GET /api/rankings/season/current retorna a faixa de rodadas da temporada")
+        void deveRetornarInfoDaTemporadaAtual() throws Exception {
+            criarCompeticao(5, "open");
+
+            mockMvc.perform(get("/api/rankings/season/current"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.seasonNumber").value(2))
+                    .andExpect(jsonPath("$.roundStart").value(5))
+                    .andExpect(jsonPath("$.roundEnd").value(8));
+        }
+
+        @Test
+        @DisplayName("GET /api/rankings/season/current assume temporada 1 sem rodadas cadastradas")
+        void deveRetornarTemporada1SemRodadas() throws Exception {
+            mockMvc.perform(get("/api/rankings/season/current"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.seasonNumber").value(1))
+                    .andExpect(jsonPath("$.roundStart").value(1))
+                    .andExpect(jsonPath("$.roundEnd").value(4));
+        }
+    }
 }

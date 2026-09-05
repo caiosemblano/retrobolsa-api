@@ -14,7 +14,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * classe) e conecta o Spring nele via @ServiceConnection, o que faz o
  * Flyway rodar as migrations reais em vez de usar H2/create-drop.
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        // Segredo apenas de teste: em produção JWT_SECRET vem do ambiente, sem default.
+        "jwt.secret=segredo-de-teste-retrobolsa-com-mais-de-32-bytes",
+        "retrobolsa.ranking.season-size=4"
+})
 @AutoConfigureMockMvc
 @Testcontainers
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
