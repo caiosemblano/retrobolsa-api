@@ -27,6 +27,8 @@ public class RankingService {
 
     private static final List<String> FINISHED_STATUSES = List.of("simulated", "revealed");
     private static final int DEFAULT_PAGE_SIZE = 50;
+    /** Contas administrativas não são jogadores reais e não devem aparecer em nenhum ranking. */
+    private static final String ADMIN_ROLE = "ADMIN";
 
     private final PortfolioRepository portfolioRepository;
     private final UserRepository userRepository;
@@ -132,8 +134,8 @@ public class RankingService {
         int pageSize = (limit == null || limit <= 0) ? DEFAULT_PAGE_SIZE : Math.min(limit, 200);
         int pageNumber = (page == null || page < 0) ? 0 : page;
 
-        List<User> users = userRepository.findAllByOrderByTotalScoreDescUsernameAsc(
-                PageRequest.of(pageNumber, pageSize));
+        List<User> users = userRepository.findAllByRoleNotOrderByTotalScoreDescUsernameAsc(
+                ADMIN_ROLE, PageRequest.of(pageNumber, pageSize));
 
         // Offset para numerar o rank corretamente em páginas subsequentes
         int rankOffset = pageNumber * pageSize;
@@ -176,11 +178,13 @@ public class RankingService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado: " + email));
 
-        // Ranking global: posição calculada via contagem indexada, sem carregar a tabela toda
-        long usersAhead = userRepository.countByTotalScoreGreaterThan(user.getTotalScore())
-                + userRepository.countByTotalScoreAndUsernameLessThan(user.getTotalScore(), user.getUsername());
+        // Ranking global: posição calculada via contagem indexada, sem carregar a tabela toda,
+        // e excluindo contas administrativas (não são jogadores reais).
+        long usersAhead = userRepository.countByTotalScoreGreaterThanAndRoleNot(user.getTotalScore(), ADMIN_ROLE)
+                + userRepository.countByTotalScoreAndUsernameLessThanAndRoleNot(
+                        user.getTotalScore(), user.getUsername(), ADMIN_ROLE);
         int globalRank = (int) usersAhead + 1;
-        long totalGlobalPlayers = userRepository.count();
+        long totalGlobalPlayers = userRepository.countByRoleNot(ADMIN_ROLE);
         int competitionsPlayed = (int) portfolioRepository.countByUserId(user.getId());
 
         // Rodada ativa: tenta open primeiro, depois última finalizada

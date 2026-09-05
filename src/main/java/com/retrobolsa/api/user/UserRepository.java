@@ -14,15 +14,18 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
     User findByUsername(String username);
 
-    /** Retorna todos os usuários ordenados por totalScore desc e username asc (sem paginação). */
-    List<User> findAllByOrderByTotalScoreDescUsernameAsc();
+    /**
+     * Ranking global paginado, excluindo uma role (tipicamente "ADMIN") — contas
+     * administrativas não são jogadores reais e não devem aparecer no ranking.
+     */
+    List<User> findAllByRoleNotOrderByTotalScoreDescUsernameAsc(String role, Pageable pageable);
 
-    /** Retorna usuários ordenados por totalScore desc e username asc com suporte a paginação/top-N. */
-    List<User> findAllByOrderByTotalScoreDescUsernameAsc(Pageable pageable);
+    /** Quantos usuários (fora da role informada) têm score estritamente maior. */
+    long countByTotalScoreGreaterThanAndRoleNot(int totalScore, String role);
 
-    /** Quantos usuários têm score estritamente maior (usado para calcular a posição global sem carregar a tabela toda). */
-    long countByTotalScoreGreaterThan(int totalScore);
+    /** Desempate: quantos usuários (fora da role informada) com o mesmo score vêm antes por username. */
+    long countByTotalScoreAndUsernameLessThanAndRoleNot(int totalScore, String username, String role);
 
-    /** Desempate: quantos usuários com o mesmo score vêm antes por ordem alfabética de username. */
-    long countByTotalScoreAndUsernameLessThan(int totalScore, String username);
+    /** Total de usuários (fora da role informada) — usado para "de quantos jogadores" no ranking. */
+    long countByRoleNot(String role);
 }

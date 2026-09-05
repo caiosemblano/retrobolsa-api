@@ -14,6 +14,9 @@ import com.retrobolsa.api.security.JwtUtil;
 @RequiredArgsConstructor
 public class UserService {
 
+    /** Qualquer e-mail cadastrado sob este domínio vira ADMIN automaticamente ao se registrar. */
+    private static final String ADMIN_EMAIL_DOMAIN = "@admin.com";
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
@@ -36,9 +39,14 @@ public class UserService {
                 .username(username)
                 .email(email)
                 .passwordHash(passwordHash)
+                .role(isAdminEmail(email) ? "ADMIN" : "PLAYER")
                 .build();
         userRepository.save(user);
 
+    }
+
+    private boolean isAdminEmail(String email) {
+        return email != null && email.toLowerCase().endsWith(ADMIN_EMAIL_DOMAIN);
     }
 
     public String login(LoginRequest request) throws IllegalArgumentException {

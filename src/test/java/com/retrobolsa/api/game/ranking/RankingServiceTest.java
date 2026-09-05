@@ -256,7 +256,7 @@ class RankingServiceTest {
             User u2 = buildUser("bia", 150); // empate: desempate por username
             User u3 = buildUser("caio", 40);
 
-            when(userRepository.findAllByOrderByTotalScoreDescUsernameAsc(any(PageRequest.class)))
+            when(userRepository.findAllByRoleNotOrderByTotalScoreDescUsernameAsc(eq("ADMIN"), any(PageRequest.class)))
                     .thenReturn(List.of(u1, u2, u3));
             when(portfolioRepository.countByUserIdIn(anyList())).thenReturn(List.of(
                     buildCount(u1.getId(), 3L), buildCount(u2.getId(), 3L), buildCount(u3.getId(), 3L)));
@@ -279,7 +279,7 @@ class RankingServiceTest {
         void deveCalcularRankOffsetNaPagina2() {
             User u1 = buildUser("xavier", 10);
 
-            when(userRepository.findAllByOrderByTotalScoreDescUsernameAsc(any(PageRequest.class)))
+            when(userRepository.findAllByRoleNotOrderByTotalScoreDescUsernameAsc(eq("ADMIN"), any(PageRequest.class)))
                     .thenReturn(List.of(u1));
             when(portfolioRepository.countByUserIdIn(anyList())).thenReturn(List.of(buildCount(u1.getId(), 1L)));
 
@@ -292,31 +292,31 @@ class RankingServiceTest {
         @Test
         @DisplayName("usa valores padrão quando limit e page são nulos")
         void deveUsarValoresPadraoComParametrosNulos() {
-            when(userRepository.findAllByOrderByTotalScoreDescUsernameAsc(any(PageRequest.class)))
+            when(userRepository.findAllByRoleNotOrderByTotalScoreDescUsernameAsc(eq("ADMIN"), any(PageRequest.class)))
                     .thenReturn(List.of());
 
             rankingService.getGlobalRanking(null, null);
 
             // Verifica que usou PageRequest(0, 50) como padrão
-            verify(userRepository).findAllByOrderByTotalScoreDescUsernameAsc(PageRequest.of(0, 50));
+            verify(userRepository).findAllByRoleNotOrderByTotalScoreDescUsernameAsc("ADMIN", PageRequest.of(0, 50));
         }
 
         @Test
         @DisplayName("limita o pageSize a 200 mesmo quando limit maior é informado")
         void deveLimitarPageSizeA200() {
-            when(userRepository.findAllByOrderByTotalScoreDescUsernameAsc(any(PageRequest.class)))
+            when(userRepository.findAllByRoleNotOrderByTotalScoreDescUsernameAsc(eq("ADMIN"), any(PageRequest.class)))
                     .thenReturn(List.of());
 
             rankingService.getGlobalRanking(9999, 0);
 
-            verify(userRepository).findAllByOrderByTotalScoreDescUsernameAsc(PageRequest.of(0, 200));
+            verify(userRepository).findAllByRoleNotOrderByTotalScoreDescUsernameAsc("ADMIN", PageRequest.of(0, 200));
         }
 
         @Test
         @DisplayName("inclui competitionsPlayed corretamente")
         void deveIncluirCompetitionsPlayed() {
             User u1 = buildUser("eva", 100);
-            when(userRepository.findAllByOrderByTotalScoreDescUsernameAsc(any(PageRequest.class)))
+            when(userRepository.findAllByRoleNotOrderByTotalScoreDescUsernameAsc(eq("ADMIN"), any(PageRequest.class)))
                     .thenReturn(List.of(u1));
             when(portfolioRepository.countByUserIdIn(anyList())).thenReturn(List.of(buildCount(u1.getId(), 5L)));
 
@@ -353,9 +353,9 @@ class RankingServiceTest {
             User u3 = buildUser("carla", 80);
 
             when(userRepository.findByEmail(u2.getEmail())).thenReturn(Optional.of(u2));
-            when(userRepository.countByTotalScoreGreaterThan(u2.getTotalScore())).thenReturn(1L); // ana (200)
-            when(userRepository.countByTotalScoreAndUsernameLessThan(u2.getTotalScore(), u2.getUsername())).thenReturn(0L);
-            when(userRepository.count()).thenReturn(3L);
+            when(userRepository.countByTotalScoreGreaterThanAndRoleNot(u2.getTotalScore(), "ADMIN")).thenReturn(1L); // ana (200)
+            when(userRepository.countByTotalScoreAndUsernameLessThanAndRoleNot(u2.getTotalScore(), u2.getUsername(), "ADMIN")).thenReturn(0L);
+            when(userRepository.countByRoleNot("ADMIN")).thenReturn(3L);
             when(portfolioRepository.countByUserId(u2.getId())).thenReturn(2L);
             when(competitionRepository.findByStatus("open")).thenReturn(Optional.empty());
             when(competitionRepository.findTopByStatusInOrderByRoundNumberDesc(anyList()))
