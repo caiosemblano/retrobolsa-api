@@ -87,7 +87,9 @@ public class SecurityConfig {
                                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                                 // /me exige autenticação; demais rotas de ranking são públicas
                                 .requestMatchers("/api/rankings/me").authenticated()
-                                .requestMatchers("/api/competitions/**", "/api/rankings/**", "/api/articles/**").permitAll()
+                                // /api/articles fica de fora de propósito: o progresso é por usuário,
+                                // então ela cai no anyRequest().authenticated() e responde 401 sem token.
+                                .requestMatchers("/api/competitions/**", "/api/rankings/**").permitAll()
                                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                                 .anyRequest().authenticated()
                 );
