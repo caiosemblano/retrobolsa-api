@@ -1,5 +1,7 @@
 package com.retrobolsa.api.game.achievement;
 
+import java.util.Set;
+
 /**
  * Códigos das conquistas. Precisam bater com o catálogo semeado em
  * {@code V9__create_achievements.sql} — {@code AchievementCatalogIntegrationTest}
@@ -22,4 +24,13 @@ public final class AchievementCodes {
     public static final String MODULO_COMPLETO = "MODULO_COMPLETO";
     public static final String CAMPEAO_RODADA = "CAMPEAO_RODADA";
     public static final String FORMADO = "FORMADO";
+
+    /**
+     * Conquistas que nascem de carteiras e rodadas. O reset do jogo apaga carteiras
+     * e zera pontos, então apaga também estas — mas não as de aulas, porque o
+     * progresso das aulas sobrevive ao reset.
+     */
+    public static final Set<String> GAME = Set.of(
+            PRIMEIRA_CARTEIRA, TUDO_INVESTIDO, NO_AZUL, EQUILIBRISTA, DIVERSIFICADOR,
+            DOIS_DIGITOS, VETERANO, PODIO, CAMPEAO_RODADA);
 }

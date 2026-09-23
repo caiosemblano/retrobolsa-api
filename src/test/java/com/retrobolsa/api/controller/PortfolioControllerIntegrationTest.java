@@ -1,15 +1,19 @@
 package com.retrobolsa.api.controller;
 
 import tools.jackson.databind.ObjectMapper;
+import com.retrobolsa.api.game.achievement.AchievementCodes;
+import com.retrobolsa.api.game.achievement.AchievementService;
 import com.retrobolsa.api.game.asset.Asset;
 import com.retrobolsa.api.game.asset.AssetRepository;
 import com.retrobolsa.api.game.asset.AssetSnapshot;
 import com.retrobolsa.api.game.asset.AssetSnapshotRepository;
 import com.retrobolsa.api.game.competition.Competition;
 import com.retrobolsa.api.game.competition.CompetitionRepository;
+import com.retrobolsa.api.game.dto.AchievementResponseDto;
 import com.retrobolsa.api.game.dto.SubmitPortfolioRequestDto;
 import com.retrobolsa.api.game.portfolio.AllocationRepository;
 import com.retrobolsa.api.game.portfolio.PortfolioRepository;
+import com.retrobolsa.api.game.portfolio.PortfolioService;
 import com.retrobolsa.api.security.JwtUtil;
 import com.retrobolsa.api.user.User;
 import com.retrobolsa.api.user.UserRepository;
@@ -22,7 +26,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -67,6 +73,12 @@ class PortfolioControllerIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private AchievementService achievementService;
+
+    @Autowired
+    private PortfolioService portfolioService;
 
     @BeforeEach
     void limparBanco() {
@@ -328,14 +340,95 @@ class PortfolioControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     // ---------------------------------------------------------------
+    // Conquistas desbloqueadas pelo fluxo real
+    // ---------------------------------------------------------------
+
+    @Test
+    void deveDesbloquearConquistasDeMontagemAoSubmeterCarteiraCompleta() throws Exception {
+        Asset acao1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        Asset acao2 = criarAssetComHistorico("Ação 2", new BigDecimal("0.10"));
+        Asset acao3 = criarAssetComHistorico("Ação 3", new BigDecimal("0.10"));
+        Asset titulo1 = criarAssetComHistorico("Título 1", new BigDecimal("0.08"), "bond");
+        Asset titulo2 = criarAssetComHistorico("Título 2", new BigDecimal("0.08"), "bond");
+        Competition competicao = criarCompeticaoAberta(1, List.of(acao1, acao2, acao3, titulo1, titulo2));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+
+        submeter(usuario, competicao,
+                alocacao(acao1.getId(), new BigDecimal("20000.00")),
+                alocacao(acao2.getId(), new BigDecimal("20000.00")),
+                alocacao(acao3.getId(), new BigDecimal("20000.00")),
+                alocacao(titulo1.getId(), new BigDecimal("20000.00")),
+                alocacao(titulo2.getId(), new BigDecimal("20000.00")));
+
+        assertThat(conquistasDe(usuario)).containsExactlyInAnyOrder(
+                AchievementCodes.PRIMEIRA_CARTEIRA, AchievementCodes.TUDO_INVESTIDO,
+                AchievementCodes.DIVERSIFICADOR, AchievementCodes.EQUILIBRISTA);
+    }
+
+    @Test
+    void carteiraParcialSoDeAcoesGanhaSoPrimeiraCarteira() throws Exception {
+        Asset acao = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        Competition competicao = criarCompeticaoAberta(1, List.of(acao));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+
+        submeter(usuario, competicao, alocacao(acao.getId(), new BigDecimal("40000.00")));
+
+        assertThat(conquistasDe(usuario)).containsExactly(AchievementCodes.PRIMEIRA_CARTEIRA);
+    }
+
+    @Test
+    void submissaoRecusadaNaoConcedeConquista() throws Exception {
+        Asset acao = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        Competition competicao = criarCompeticaoAberta(1, List.of(acao));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+
+        mockMvc.perform(post("/api/portfolios")
+                        .header("Authorization", "Bearer " + gerarToken(usuario))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestComAlocacoes(competicao.getId(),
+                                alocacao(acao.getId(), new BigDecimal("150000.00"))))))
+                .andExpect(status().isBadRequest());
+
+        assertThat(conquistasDe(usuario)).isEmpty();
+    }
+
+    @Test
+    void simulacaoDaRodadaConcedeConquistasDeResultado() throws Exception {
+        // 10% a.a. por 2 anos = +21% ; -5% a.a. por 2 anos = -9,75%
+        Asset vencedora = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        Asset perdedora = criarAssetComHistorico("Ação 2", new BigDecimal("-0.05"));
+        Competition competicao = criarCompeticaoAberta(1, List.of(vencedora, perdedora));
+        User ana = criarUsuario("ana", "ana@retrobolsa.com");
+        User beto = criarUsuario("beto", "beto@retrobolsa.com");
+
+        submeter(ana, competicao, alocacao(vencedora.getId(), BUDGET));
+        submeter(beto, competicao, alocacao(perdedora.getId(), BUDGET));
+
+        competicao.setStatus("closed");
+        competitionRepository.save(competicao);
+        portfolioService.simulateCompetition(competitionRepository.findById(competicao.getId()).orElseThrow());
+
+        // Rodada de 2 jogadores: vale Campeão, mas não Pódio (exige 4).
+        assertThat(conquistasDe(ana))
+                .contains(AchievementCodes.CAMPEAO_RODADA, AchievementCodes.NO_AZUL, AchievementCodes.DOIS_DIGITOS)
+                .doesNotContain(AchievementCodes.PODIO);
+        assertThat(conquistasDe(beto))
+                .doesNotContain(AchievementCodes.CAMPEAO_RODADA, AchievementCodes.NO_AZUL, AchievementCodes.DOIS_DIGITOS);
+    }
+
+    // ---------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------
 
     private Asset criarAssetComHistorico(String nomeAnonimo, BigDecimal retornoAnual) {
+        return criarAssetComHistorico(nomeAnonimo, retornoAnual, "stock");
+    }
+
+    private Asset criarAssetComHistorico(String nomeAnonimo, BigDecimal retornoAnual, String tipo) {
         Asset asset = assetRepository.save(Asset.builder()
                 .anonymousName(nomeAnonimo)
                 .realName("Empresa Real " + nomeAnonimo.replaceAll("\\D", ""))
-                .type("stock")
+                .type(tipo)
                 .sector("Financeiro")
                 .build());
 
@@ -372,11 +465,31 @@ class PortfolioControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     private User criarUsuario(String email) {
+        return criarUsuario("rafael", email);
+    }
+
+    private User criarUsuario(String username, String email) {
         return userRepository.save(User.builder()
-                .username("rafael")
+                .username(username)
                 .email(email)
                 .passwordHash(passwordEncoder.encode("senha123"))
                 .build());
+    }
+
+    private void submeter(User usuario, Competition competicao, SubmitPortfolioRequestDto.AllocationRequestDto... alocacoes)
+            throws Exception {
+        mockMvc.perform(post("/api/portfolios")
+                        .header("Authorization", "Bearer " + gerarToken(usuario))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestComAlocacoes(competicao.getId(), alocacoes))))
+                .andExpect(status().isCreated());
+    }
+
+    private Set<String> conquistasDe(User usuario) {
+        return achievementService.listForUser(usuario.getId()).stream()
+                .filter(AchievementResponseDto::isUnlocked)
+                .map(AchievementResponseDto::getCode)
+                .collect(Collectors.toSet());
     }
 
     private String gerarToken(User user) {
