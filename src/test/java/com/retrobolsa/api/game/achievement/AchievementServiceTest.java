@@ -190,6 +190,41 @@ class AchievementServiceTest {
     }
 
     // -------------------------------------------------------------------------
+    // Regras de aulas
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("regras de aulas")
+    class RegrasDeAulas {
+
+        @Test
+        @DisplayName("a primeira aula concluída vale Estudante")
+        void primeiraAula() {
+            assertThat(AchievementService.codesForLessons(1, 3, 1, 8)).containsExactly(PRIMEIRA_AULA);
+        }
+
+        @Test
+        @DisplayName("Módulo Concluído só ao fechar todas as aulas do módulo")
+        void moduloCompleto() {
+            assertThat(AchievementService.codesForLessons(2, 3, 2, 8)).doesNotContain(MODULO_COMPLETO);
+            assertThat(AchievementService.codesForLessons(3, 3, 3, 8)).contains(MODULO_COMPLETO);
+        }
+
+        @Test
+        @DisplayName("Formado só ao concluir todas as aulas de todos os módulos")
+        void formado() {
+            assertThat(AchievementService.codesForLessons(2, 2, 7, 8)).doesNotContain(FORMADO);
+            assertThat(AchievementService.codesForLessons(2, 2, 8, 8)).contains(PRIMEIRA_AULA, MODULO_COMPLETO, FORMADO);
+        }
+
+        @Test
+        @DisplayName("catálogo vazio (0 de 0 aulas) não concede Módulo Concluído nem Formado")
+        void catalogoVazioNaoConcede() {
+            assertThat(AchievementService.codesForLessons(0, 0, 0, 0)).isEmpty();
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Gatilhos
     // -------------------------------------------------------------------------
 

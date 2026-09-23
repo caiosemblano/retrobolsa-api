@@ -53,6 +53,13 @@ public class AchievementService {
         return unlock(user, codesForRoundResult(rank, totalReturn, fieldSize));
     }
 
+    /** Avalia as conquistas de estudo, logo após uma aula ser concluída. */
+    @Transactional
+    public List<String> evaluateOnLessonCompleted(User user, long completedInModule, long lessonsInModule,
+                                                  long completedTotal, long totalLessons) {
+        return unlock(user, codesForLessons(completedInModule, lessonsInModule, completedTotal, totalLessons));
+    }
+
     /** Apaga as conquistas de jogo de todos os usuários (reset do admin); as de aulas ficam. */
     @Transactional
     public void resetGameAchievements() {
@@ -95,6 +102,22 @@ public class AchievementService {
         }
         if (totalReturn != null && totalReturn.compareTo(DOUBLE_DIGIT_RETURN) >= 0) {
             codes.add(AchievementCodes.DOIS_DIGITOS);
+        }
+        return codes;
+    }
+
+    static List<String> codesForLessons(long completedInModule, long lessonsInModule,
+                                        long completedTotal, long totalLessons) {
+        List<String> codes = new ArrayList<>();
+        if (completedTotal >= 1) {
+            codes.add(AchievementCodes.PRIMEIRA_AULA);
+        }
+        // Os "> 0" evitam conceder conquista por um catálogo vazio (0 de 0 aulas).
+        if (lessonsInModule > 0 && completedInModule >= lessonsInModule) {
+            codes.add(AchievementCodes.MODULO_COMPLETO);
+        }
+        if (totalLessons > 0 && completedTotal >= totalLessons) {
+            codes.add(AchievementCodes.FORMADO);
         }
         return codes;
     }

@@ -17,4 +17,6 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
             ORDER BY m.displayOrder ASC, a.displayOrder ASC
             """)
     List<Article> findAllByOrderByModule_DisplayOrderAscDisplayOrderAsc();
+
+    long countByModuleId(UUID moduleId);
 }

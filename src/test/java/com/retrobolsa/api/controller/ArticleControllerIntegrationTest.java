@@ -1,5 +1,8 @@
 package com.retrobolsa.api.controller;
 
+import com.retrobolsa.api.game.achievement.AchievementCodes;
+import com.retrobolsa.api.game.achievement.AchievementService;
+import com.retrobolsa.api.game.dto.AchievementResponseDto;
 import com.retrobolsa.api.game.education.UserArticleProgressRepository;
 import com.retrobolsa.api.security.JwtUtil;
 import com.retrobolsa.api.user.User;
@@ -11,6 +14,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,6 +41,7 @@ class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
     @Autowired private UserArticleProgressRepository progressRepository;
     @Autowired private JwtUtil jwtUtil;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private AchievementService achievementService;
 
     private User ana;
     private String token;
@@ -114,6 +121,38 @@ class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/articles").header("Authorization", "Bearer " + jwtUtil.generateToken(bia.getEmail())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].completed", everyItem(is(false))));
+    }
+
+    @Test
+    @DisplayName("concluir aulas desbloqueia Estudante, depois Módulo Concluído e por fim Formado")
+    void conclusoesDesbloqueiamConquistasDeAulas() throws Exception {
+        concluir(AULA_RENTABILIDADE);
+        assertThat(conquistasDe(ana)).containsExactly(AchievementCodes.PRIMEIRA_AULA);
+
+        // Fecha o módulo 1 (3 aulas).
+        concluir(AULA_JUROS);
+        concluir("bbbbbbbb-0003-0000-0000-000000000003");
+        assertThat(conquistasDe(ana)).containsExactlyInAnyOrder(
+                AchievementCodes.PRIMEIRA_AULA, AchievementCodes.MODULO_COMPLETO);
+
+        // Conclui as 5 restantes: todos os módulos fechados.
+        for (int i = 4; i <= 8; i++) {
+            concluir(String.format("bbbbbbbb-%04d-0000-0000-%012d", i, i));
+        }
+        assertThat(conquistasDe(ana)).containsExactlyInAnyOrder(
+                AchievementCodes.PRIMEIRA_AULA, AchievementCodes.MODULO_COMPLETO, AchievementCodes.FORMADO);
+    }
+
+    private void concluir(String articleId) throws Exception {
+        mockMvc.perform(post("/api/articles/{id}/complete", articleId).header("Authorization", token))
+                .andExpect(status().isNoContent());
+    }
+
+    private Set<String> conquistasDe(User usuario) {
+        return achievementService.listForUser(usuario.getId()).stream()
+                .filter(AchievementResponseDto::isUnlocked)
+                .map(AchievementResponseDto::getCode)
+                .collect(Collectors.toSet());
     }
 
     @Test
