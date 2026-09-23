@@ -1,5 +1,7 @@
 package com.retrobolsa.api.controller;
 
+import com.retrobolsa.api.game.achievement.AchievementCodes;
+import com.retrobolsa.api.game.achievement.AchievementService;
 import com.retrobolsa.api.game.competition.Competition;
 import com.retrobolsa.api.game.competition.CompetitionRepository;
 import com.retrobolsa.api.game.portfolio.AllocationRepository;
@@ -19,6 +21,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -50,6 +53,9 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private AchievementService achievementService;
 
     @BeforeEach
     void limparBanco() {
@@ -150,5 +156,41 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
     void deveExigirAutenticacao() throws Exception {
         mockMvc.perform(get("/api/users/profile"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("jogador novo recebe o catálogo inteiro de conquistas, todas bloqueadas")
+    void novoJogadorVeCatalogoBloqueado() throws Exception {
+        User novato = criarUsuario("novato", "novato@retrobolsa.com", 0);
+
+        mockMvc.perform(get("/api/users/profile")
+                        .header("Authorization", "Bearer " + jwtUtil.generateToken(novato.getEmail())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.achievements", hasSize(12)))
+                .andExpect(jsonPath("$.achievements[?(@.unlocked == true)]", hasSize(0)))
+                .andExpect(jsonPath("$.achievements[0].code").value(AchievementCodes.PRIMEIRA_CARTEIRA))
+                .andExpect(jsonPath("$.achievements[0].title").value("Primeira Carteira"))
+                .andExpect(jsonPath("$.achievements[0].rarity").value("comum"))
+                .andExpect(jsonPath("$.achievements[0].unlockedAt").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("conquistas desbloqueadas aparecem marcadas, com data em ISO, na ordem do catálogo")
+    void conquistasDesbloqueadasAparecemNoPerfil() throws Exception {
+        User ana = criarUsuario("ana", "ana@retrobolsa.com", 0);
+        achievementService.unlock(ana, List.of(AchievementCodes.PRIMEIRA_CARTEIRA, AchievementCodes.CAMPEAO_RODADA));
+
+        mockMvc.perform(get("/api/users/profile")
+                        .header("Authorization", "Bearer " + jwtUtil.generateToken(ana.getEmail())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.achievements", hasSize(12)))
+                .andExpect(jsonPath("$.achievements[?(@.unlocked == true)].code",
+                        containsInAnyOrder(AchievementCodes.PRIMEIRA_CARTEIRA, AchievementCodes.CAMPEAO_RODADA)))
+                // Primeira Carteira é a 1ª do catálogo; Campeão da Rodada, a 11ª (lendária).
+                .andExpect(jsonPath("$.achievements[0].unlocked").value(true))
+                .andExpect(jsonPath("$.achievements[0].unlockedAt").isString())
+                .andExpect(jsonPath("$.achievements[10].code").value(AchievementCodes.CAMPEAO_RODADA))
+                .andExpect(jsonPath("$.achievements[10].rarity").value("lendario"))
+                .andExpect(jsonPath("$.achievements[10].unlocked").value(true));
     }
 }
