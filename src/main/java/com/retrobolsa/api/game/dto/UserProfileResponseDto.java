@@ -14,4 +14,6 @@ public class UserProfileResponseDto {
     Integer bestRank;
     long competitions;
     List<UserCompetitionHistoryDto> history;
+    /** Catálogo completo de conquistas, com as desbloqueadas marcadas. */
+    List<AchievementResponseDto> achievements;
 }

@@ -1,5 +1,6 @@
 package com.retrobolsa.api.game.portfolio;
 
+import com.retrobolsa.api.game.achievement.AchievementService;
 import com.retrobolsa.api.game.asset.Asset;
 import com.retrobolsa.api.game.asset.AssetRepository;
 import com.retrobolsa.api.game.asset.HistoricalQuote;
@@ -35,6 +36,7 @@ public class PortfolioService {
     private final AssetSnapshotRepository snapshotRepository;
     private final UserRepository userRepository;
     private final SimulationEngine simulationEngine;
+    private final AchievementService achievementService;
 
     @Transactional
     public SubmitPortfolioResponseDto submit(UUID userId, SubmitPortfolioRequestDto request) {
@@ -128,6 +130,9 @@ public class PortfolioService {
                     .build());
         }
         allocationRepository.saveAll(allocations);
+
+        achievementService.evaluateOnSubmit(user, competition.getBudget(), allocations,
+                portfolioRepository.countByUserId(userId));
 
         return SubmitPortfolioResponseDto.builder()
                 .message("Carteira submetida com sucesso")
@@ -256,6 +261,7 @@ public class PortfolioService {
                 user.setTotalScore(newScore);
                 userRepository.save(user);
             }
+            achievementService.evaluateOnRoundResult(user, i + 1, totalReturn, portfolios.size());
         }
         portfolioRepository.saveAll(portfolios);
     }

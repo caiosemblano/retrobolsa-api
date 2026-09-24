@@ -1,5 +1,6 @@
 package com.retrobolsa.api.game.portfolio;
 
+import com.retrobolsa.api.game.achievement.AchievementService;
 import com.retrobolsa.api.game.asset.Asset;
 import com.retrobolsa.api.game.asset.AssetRepository;
 import com.retrobolsa.api.game.asset.AssetSnapshotRepository;
@@ -44,6 +45,7 @@ class PortfolioServiceTest {
     @Mock private AssetSnapshotRepository snapshotRepository;
     @Mock private UserRepository userRepository;
     @Mock private SimulationEngine simulationEngine;
+    @Mock private AchievementService achievementService;
 
     @InjectMocks private PortfolioService portfolioService;
 
@@ -172,6 +174,28 @@ class PortfolioServiceTest {
 
             assertThat(ana.getTotalScore()).isZero();
             assertThat(anaPortfolio.getRank()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("avalia as conquistas de cada jogador com rank final, rentabilidade e tamanho da rodada")
+        void deveAvaliarConquistasDeResultado() {
+            Competition competition = buildCompetition("closed");
+            User ana = User.builder().id(UUID.randomUUID()).username("ana").build();
+            User beto = User.builder().id(UUID.randomUUID()).username("beto").build();
+            Portfolio anaPortfolio = buildPortfolio(ana, competition);
+            Portfolio betoPortfolio = buildPortfolio(beto, competition);
+
+            when(portfolioRepository.findByCompetitionIdOrderByTotalReturnDesc(competition.getId()))
+                    .thenReturn(List.of(anaPortfolio, betoPortfolio),
+                            List.of(betoPortfolio, anaPortfolio));
+            stubQuotes();
+            stubEngine(new BigDecimal("-3.10"), new BigDecimal("18.00"));
+
+            portfolioService.simulateCompetition(competition);
+
+            // O rank avaliado é o final (pós-ordenação), não a ordem de submissão.
+            verify(achievementService).evaluateOnRoundResult(beto, 1, new BigDecimal("18.00"), 2);
+            verify(achievementService).evaluateOnRoundResult(ana, 2, new BigDecimal("-3.10"), 2);
         }
     }
 }

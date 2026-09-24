@@ -1,5 +1,6 @@
 package com.retrobolsa.api.controller;
 
+import com.retrobolsa.api.game.achievement.AchievementService;
 import com.retrobolsa.api.game.dto.UserCompetitionHistoryDto;
 import com.retrobolsa.api.game.dto.UserProfileResponseDto;
 import com.retrobolsa.api.game.portfolio.Portfolio;
@@ -20,6 +21,7 @@ import java.util.List;
 public class UserController {
     private final UserRepository userRepository;
     private final PortfolioRepository portfolioRepository;
+    private final AchievementService achievementService;
 
     @GetMapping("/profile")
     public ResponseEntity<UserProfileResponseDto> profile(Authentication authentication) {
@@ -52,6 +54,7 @@ public class UserController {
                 .bestRank(bestRank)
                 .competitions(portfolios.size())
                 .history(history)
+                .achievements(achievementService.listForUser(user.getId()))
                 .build());
     }
 }

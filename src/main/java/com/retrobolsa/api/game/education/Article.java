@@ -23,4 +23,7 @@ public class Article {
     private int durationMin;
     @Column(name = "display_order")
     private int displayOrder;
+    /** ID do vídeo no YouTube (11 caracteres, validado por CHECK no banco); null se a aula não tem vídeo. */
+    @Column(name = "video_id")
+    private String videoId;
 }

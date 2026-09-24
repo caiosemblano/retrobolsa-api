@@ -1,5 +1,6 @@
 package com.retrobolsa.api.game.competition;
 
+import com.retrobolsa.api.game.achievement.AchievementService;
 import com.retrobolsa.api.game.asset.Asset;
 import com.retrobolsa.api.game.asset.AssetSnapshot;
 import com.retrobolsa.api.game.asset.AssetSnapshotRepository;
@@ -21,6 +22,7 @@ public class CompetitionService {
 
     private final CompetitionRepository competitionRepository;
     private final AssetSnapshotRepository snapshotRepository;
+    private final AchievementService achievementService;
 
     @Transactional(readOnly = true)
     public CompetitionResponseDto getActiveCompetition() {
@@ -154,6 +156,9 @@ public class CompetitionService {
         entityManager.createNativeQuery("DELETE FROM allocations").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM portfolios").executeUpdate();
         entityManager.createNativeQuery("UPDATE users SET total_score = 0").executeUpdate();
+        // Sem carteiras e sem pontos, as conquistas de jogo ficariam sem nada por trás.
+        // As de aulas continuam: o progresso das aulas não é apagado pelo reset.
+        achievementService.resetGameAchievements();
 
         List<Competition> comps = competitionRepository.findAll();
         boolean foundRoundOne = false;

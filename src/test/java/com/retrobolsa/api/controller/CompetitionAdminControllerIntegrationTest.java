@@ -1,6 +1,10 @@
 package com.retrobolsa.api.controller;
 
+import com.retrobolsa.api.game.achievement.AchievementCodes;
+import com.retrobolsa.api.game.achievement.AchievementService;
+import com.retrobolsa.api.game.competition.Competition;
 import com.retrobolsa.api.game.competition.CompetitionRepository;
+import com.retrobolsa.api.game.dto.AchievementResponseDto;
 import com.retrobolsa.api.security.JwtUtil;
 import com.retrobolsa.api.user.User;
 import com.retrobolsa.api.user.UserRepository;
@@ -10,6 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -35,6 +43,9 @@ class CompetitionAdminControllerIntegrationTest extends AbstractIntegrationTest 
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private AchievementService achievementService;
 
     @BeforeEach
     void limparBanco() {
@@ -70,6 +81,36 @@ class CompetitionAdminControllerIntegrationTest extends AbstractIntegrationTest 
     void deveNegarAcessoSemAutenticacao() throws Exception {
         mockMvc.perform(post("/api/admin/competitions/next-round"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void resetApagaConquistasDeJogoMasMantemAsDeAulas() throws Exception {
+        User admin = criarAdmin("admin@retrobolsa.com");
+        User jogador = userRepository.save(User.builder()
+                .username("jogador")
+                .email("jogador@retrobolsa.com")
+                .passwordHash(passwordEncoder.encode("senha123"))
+                .build());
+        // O reset exige uma rodada 1 para reabrir.
+        competitionRepository.save(Competition.builder()
+                .roundNumber(1)
+                .status("simulated")
+                .budget(new BigDecimal("100000.00"))
+                .startYear(2020)
+                .endYear(2022)
+                .build());
+        achievementService.unlock(jogador, List.of(
+                AchievementCodes.PRIMEIRA_CARTEIRA, AchievementCodes.CAMPEAO_RODADA, AchievementCodes.PRIMEIRA_AULA));
+
+        mockMvc.perform(post("/api/admin/competitions/reset")
+                        .header("Authorization", "Bearer " + jwtUtil.generateToken(admin.getEmail())))
+                .andExpect(status().isNoContent());
+
+        // Carteiras e pontos somem no reset, mas o progresso das aulas não — então só a de aula fica.
+        assertThat(achievementService.listForUser(jogador.getId()))
+                .filteredOn(AchievementResponseDto::isUnlocked)
+                .extracting(AchievementResponseDto::getCode)
+                .containsExactly(AchievementCodes.PRIMEIRA_AULA);
     }
 
     private User criarAdmin(String email) {

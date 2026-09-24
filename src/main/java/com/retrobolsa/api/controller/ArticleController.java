@@ -26,7 +26,7 @@ public class ArticleController {
 
     @PostMapping("/{id}/complete")
     public ResponseEntity<Void> complete(@PathVariable UUID id, Authentication authentication) {
-        educationService.complete(resolveUser(authentication).getId(), id);
+        educationService.complete(resolveUser(authentication), id);
         return ResponseEntity.noContent().build();
     }
 
