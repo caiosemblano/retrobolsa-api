@@ -2,8 +2,8 @@ package com.retrobolsa.api.controller;
 
 import com.retrobolsa.api.game.competition.Competition;
 import com.retrobolsa.api.game.competition.CompetitionRepository;
-import com.retrobolsa.api.game.asset.Asset;
-import com.retrobolsa.api.game.asset.AssetRepository;
+import com.retrobolsa.api.game.competition.CompetitionAdminService;
+import com.retrobolsa.api.game.dto.AdminAssetDto;
 import com.retrobolsa.api.game.dto.CreateCompetitionRequestDto;
 import com.retrobolsa.api.game.portfolio.PortfolioService;
 import com.retrobolsa.api.game.competition.CompetitionService;
@@ -21,7 +21,7 @@ import java.util.UUID;
 public class CompetitionAdminController {
 
     private final CompetitionRepository competitionRepository;
-    private final AssetRepository assetRepository;
+    private final CompetitionAdminService competitionAdminService;
     private final PortfolioService portfolioService;
     private final CompetitionService competitionService;
 
@@ -32,24 +32,13 @@ public class CompetitionAdminController {
 
     @PostMapping
     public ResponseEntity<Competition> create(@Valid @RequestBody CreateCompetitionRequestDto request) {
-        if (request.getEndYear() <= request.getStartYear()) {
-            throw new IllegalArgumentException("O ano final deve ser posterior ao ano inicial");
-        }
-        List<Asset> assets = assetRepository.findAllById(request.getAssetIds());
-        if (assets.size() != request.getAssetIds().size()) {
-            throw new IllegalArgumentException("Um ou mais ativos nao foram encontrados");
-        }
-        Competition competition = Competition.builder()
-                .roundNumber(request.getRoundNumber())
-                .budget(request.getBudget())
-                .scenarioTitle(request.getScenarioTitle())
-                .scenarioDescription(request.getScenarioDescription())
-                .startYear(request.getStartYear())
-                .endYear(request.getEndYear())
-                .endsAt(request.getEndsAt())
-                .assets(assets)
-                .build();
-        return ResponseEntity.status(201).body(competitionRepository.save(competition));
+        return ResponseEntity.status(201).body(competitionAdminService.create(request));
+    }
+
+    /** Ativos disponíveis para montar uma rodada, com os anos que têm dados. */
+    @GetMapping("/assets")
+    public ResponseEntity<List<AdminAssetDto>> listAssets() {
+        return ResponseEntity.ok(competitionAdminService.listAssets());
     }
 
     @PostMapping("/{id}/publish")
