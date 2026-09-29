@@ -91,6 +91,7 @@ public class SecurityConfig {
                                 // então ela cai no anyRequest().authenticated() e responde 401 sem token.
                                 .requestMatchers("/api/competitions/**", "/api/rankings/**").permitAll()
                                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                                .requestMatchers("/api/teacher/**").hasRole("TEACHER")
                                 .anyRequest().authenticated()
                 );
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
