@@ -1,8 +1,11 @@
 package com.retrobolsa.api.controller;
 
+import com.retrobolsa.api.game.classroom.AssignmentService;
 import com.retrobolsa.api.game.classroom.Classroom;
+import com.retrobolsa.api.game.classroom.ClassroomAssignment;
 import com.retrobolsa.api.game.classroom.ClassroomService;
 import com.retrobolsa.api.game.classroom.TeacherDashboardService;
+import com.retrobolsa.api.game.dto.AssignmentDto;
 import com.retrobolsa.api.game.dto.ClassroomDto;
 import com.retrobolsa.api.game.dto.ClassroomStudentDto;
 import com.retrobolsa.api.game.dto.QuestionStatDto;
@@ -10,6 +13,7 @@ import com.retrobolsa.api.user.User;
 import com.retrobolsa.api.user.UserRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
@@ -21,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -33,6 +38,7 @@ public class TeacherController {
 
     private final ClassroomService classroomService;
     private final TeacherDashboardService dashboardService;
+    private final AssignmentService assignmentService;
     private final UserRepository userRepository;
 
     @GetMapping
@@ -86,6 +92,35 @@ public class TeacherController {
                         .build().toString())
                 .body(body);
     }
+
+    /** As tarefas da turma, com a situação de cada aluno. */
+    @GetMapping("/{id}/assignments")
+    public ResponseEntity<List<AssignmentDto>> assignments(@PathVariable UUID id, Authentication authentication) {
+        return ResponseEntity.ok(assignmentService.forTeacher(teacher(authentication).getId(), id));
+    }
+
+    /** Passa uma aula para a turma, com prazo. */
+    @PostMapping("/{id}/assignments")
+    public ResponseEntity<AssignmentDto> assign(@PathVariable UUID id, @Valid @RequestBody AssignRequest request,
+                                                Authentication authentication) {
+        UUID teacherId = teacher(authentication).getId();
+        ClassroomAssignment created = assignmentService.create(teacherId, id, request.articleId(), request.dueAt());
+        AssignmentDto dto = assignmentService.forTeacher(teacherId, id).stream()
+                .filter(a -> a.getId().equals(created.getId().toString()))
+                .findFirst().orElseThrow();
+        return ResponseEntity.status(201).body(dto);
+    }
+
+    @DeleteMapping("/{id}/assignments/{assignmentId}")
+    public ResponseEntity<Void> unassign(@PathVariable UUID id, @PathVariable UUID assignmentId,
+                                         Authentication authentication) {
+        assignmentService.delete(teacher(authentication).getId(), id, assignmentId);
+        return ResponseEntity.noContent().build();
+    }
+
+    public record AssignRequest(
+            @NotNull(message = "Escolha a aula.") UUID articleId,
+            @NotNull(message = "Escolha o prazo.") LocalDateTime dueAt) {}
 
     /** "1º ano B" → "1o-ano-b": nome de arquivo sem acentos nem espaços. */
     static String slug(String name) {

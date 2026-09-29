@@ -1,6 +1,8 @@
 package com.retrobolsa.api.controller;
 
+import com.retrobolsa.api.game.classroom.AssignmentService;
 import com.retrobolsa.api.game.classroom.ClassroomService;
+import com.retrobolsa.api.game.dto.StudentAssignmentDto;
 import com.retrobolsa.api.game.dto.StudentClassroomDto;
 import com.retrobolsa.api.user.User;
 import com.retrobolsa.api.user.UserRepository;
@@ -21,11 +23,18 @@ import java.util.UUID;
 public class ClassroomController {
 
     private final ClassroomService classroomService;
+    private final AssignmentService assignmentService;
     private final UserRepository userRepository;
 
     @GetMapping("/mine")
     public ResponseEntity<List<StudentClassroomDto>> mine(Authentication authentication) {
         return ResponseEntity.ok(classroomService.mine(user(authentication).getId()));
+    }
+
+    /** As tarefas que faltam o aluno fazer, em todas as turmas dele. */
+    @GetMapping("/assignments")
+    public ResponseEntity<List<StudentAssignmentDto>> assignments(Authentication authentication) {
+        return ResponseEntity.ok(assignmentService.pendingFor(user(authentication).getId()));
     }
 
     @PostMapping("/join")
