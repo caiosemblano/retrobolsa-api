@@ -57,7 +57,7 @@ class DebriefAdvisorTest {
         List<TipDto> perdeu = dicas(equilibrada, "15", "20", "10", "8");
         assertThat(codigos(perdeu)).containsExactly("PERDEU_PARA_CDI");
         assertThat(perdeu.get(0).getMessage()).startsWith("O CDI rendeu 20,0% no período");
-        assertThat(perdeu.get(0).getArticleId()).isEqualTo("bbbbbbbb-0007-0000-0000-000000000007");
+        assertThat(perdeu.get(0).getArticleId()).isEqualTo("bbbbbbbb-0012-0000-0000-000000000012"); // risco e volatilidade
     }
 
     @Test
@@ -67,7 +67,8 @@ class DebriefAdvisorTest {
 
         TipDto concentrada = dicas.stream().filter(d -> d.getCode().equals("CONCENTRADA")).findFirst().orElseThrow();
         assertThat(concentrada.getMessage()).startsWith("70% do que você investiu estava em Empresa A, que caiu 50,0%");
-        assertThat(concentrada.getModuleId()).isNull();
+        assertThat(concentrada.getModuleId()).isEqualTo("aaaaaaaa-0005-0000-0000-000000000005");
+        assertThat(concentrada.getArticleId()).isEqualTo("bbbbbbbb-0013-0000-0000-000000000013"); // por que diversificar
     }
 
     @Test
@@ -102,7 +103,8 @@ class DebriefAdvisorTest {
     void soAcoesComSelicAltaLembraDaRendaFixa() {
         List<Position> soAcoes = List.of(acao("Empresa A", "50000", "60000"), acao("Empresa B", "50000", "60000"));
 
-        assertThat(codigos(dicas(soAcoes, "20", "15", "5", "16.5"))).contains("SO_ACOES_COM_SELIC_ALTA");
+        assertThat(dicas(soAcoes, "20", "15", "5", "16.5")).filteredOn(d -> d.getCode().equals("SO_ACOES_COM_SELIC_ALTA"))
+                .singleElement().extracting(TipDto::getArticleId).isEqualTo("bbbbbbbb-0009-0000-0000-000000000009"); // Tesouro Direto
         assertThat(codigos(dicas(soAcoes, "20", "15", "5", "6.5"))).doesNotContain("SO_ACOES_COM_SELIC_ALTA");
         assertThat(codigos(dicas(equilibrada, "20", "15", "5", "16.5"))).doesNotContain("SO_ACOES_COM_SELIC_ALTA");
     }
