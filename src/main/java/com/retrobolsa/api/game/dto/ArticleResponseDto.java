@@ -21,4 +21,10 @@ public class ArticleResponseDto {
     /** ID do vídeo no YouTube; null se a aula não tem vídeo. */
     String videoId;
     boolean completed;
+    /** Aula com quiz se conclui passando nele (2 de 3), e não pelo botão. */
+    boolean hasQuiz;
+    /** Número de perguntas do quiz (0 se não há quiz). */
+    int quizTotal;
+    /** Melhor nota do aluno no quiz; null se nunca tentou. */
+    Integer bestQuizScore;
 }

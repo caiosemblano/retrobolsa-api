@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -27,9 +28,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Testes de integração de /api/articles contra o seed real (V3 + V10): os 8 artigos
- * e 3 módulos vêm das migrations, não de fixtures — então o teste também garante
- * que o V10 preencheu vídeo e conteúdo de todas as aulas.
+ * Testes de integração de /api/articles contra o seed real (V3 + V10 + V16): os 8 artigos,
+ * 3 módulos e os quizzes vêm das migrations, não de fixtures — então o teste também garante
+ * que o V10 preencheu vídeo e conteúdo de todas as aulas. Como toda aula do seed tem quiz,
+ * concluir aqui é passar no quiz (o caminho real).
  */
 class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
 
@@ -75,6 +77,9 @@ class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$[*].content", everyItem(not(blankOrNullString()))))
                 .andExpect(jsonPath("$[*].moduleDescription", everyItem(not(blankOrNullString()))))
                 .andExpect(jsonPath("$[*].completed", everyItem(is(false))))
+                .andExpect(jsonPath("$[*].hasQuiz", everyItem(is(true))))
+                .andExpect(jsonPath("$[*].quizTotal", everyItem(is(3))))
+                .andExpect(jsonPath("$[*].bestQuizScore", everyItem(nullValue())))
                 // Primeira aula do primeiro módulo
                 .andExpect(jsonPath("$[0].title").value("O que é rentabilidade?"))
                 .andExpect(jsonPath("$[0].videoId").value("Y9ng5fVji-A"))
@@ -89,10 +94,9 @@ class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("concluir uma aula marca só ela como concluída para o usuário")
+    @DisplayName("passar no quiz de uma aula marca só ela como concluída para o usuário")
     void concluirMarcaSoAAula() throws Exception {
-        mockMvc.perform(post("/api/articles/{id}/complete", AULA_JUROS).header("Authorization", token))
-                .andExpect(status().isNoContent());
+        concluir(AULA_JUROS);
 
         mockMvc.perform(get("/api/articles").header("Authorization", token))
                 .andExpect(status().isOk())
@@ -100,12 +104,10 @@ class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("concluir de novo é idempotente: 204 e um único registro de progresso")
+    @DisplayName("passar no quiz de novo é idempotente: um único registro de progresso")
     void concluirDuasVezesEIdempotente() throws Exception {
-        mockMvc.perform(post("/api/articles/{id}/complete", AULA_JUROS).header("Authorization", token))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(post("/api/articles/{id}/complete", AULA_JUROS).header("Authorization", token))
-                .andExpect(status().isNoContent());
+        concluir(AULA_JUROS);
+        concluir(AULA_JUROS);
 
         assertThat(progressRepository.findAllByIdUserId(ana.getId())).hasSize(1);
     }
@@ -115,8 +117,7 @@ class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
     void progressoEPorUsuario() throws Exception {
         User bia = userRepository.save(User.builder()
                 .username("bia").email("bia@retrobolsa.com").passwordHash("hash").build());
-        mockMvc.perform(post("/api/articles/{id}/complete", AULA_JUROS).header("Authorization", token))
-                .andExpect(status().isNoContent());
+        concluir(AULA_JUROS);
 
         mockMvc.perform(get("/api/articles").header("Authorization", "Bearer " + jwtUtil.generateToken(bia.getEmail())))
                 .andExpect(status().isOk())
@@ -143,9 +144,12 @@ class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
                 AchievementCodes.PRIMEIRA_AULA, AchievementCodes.MODULO_COMPLETO, AchievementCodes.FORMADO);
     }
 
+    /** Conclui a aula como o aluno faria: respondendo o quiz, aqui com todas as respostas certas. */
     private void concluir(String articleId) throws Exception {
-        mockMvc.perform(post("/api/articles/{id}/complete", articleId).header("Authorization", token))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/articles/{id}/quiz", articleId).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content(QuizRespostas.certas(jdbcTemplate, articleId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.passed").value(true));
     }
 
     private Set<String> conquistasDe(User usuario) {

@@ -1,6 +1,8 @@
 package com.retrobolsa.api.game.education;
 
 import com.retrobolsa.api.game.achievement.AchievementService;
+import com.retrobolsa.api.game.quiz.QuizQuestionRepository;
+import com.retrobolsa.api.game.quiz.UserQuizAttemptRepository;
 import com.retrobolsa.api.game.dto.ArticleResponseDto;
 import com.retrobolsa.api.user.User;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +34,8 @@ class EducationServiceTest {
     @Mock private ArticleRepository articleRepository;
     @Mock private UserArticleProgressRepository progressRepository;
     @Mock private AchievementService achievementService;
+    @Mock private QuizQuestionRepository quizQuestionRepository;
+    @Mock private UserQuizAttemptRepository quizAttemptRepository;
 
     @InjectMocks private EducationService educationService;
 
@@ -87,10 +91,22 @@ class EducationServiceTest {
             when(articleRepository.findAllByOrderByModule_DisplayOrderAscDisplayOrderAsc())
                     .thenReturn(List.of(rentabilidade, juros));
             when(progressRepository.findAllByIdUserId(ana.getId())).thenReturn(List.of(progresso(ana, juros)));
+            // Só a aula de juros tem quiz, e a Ana já tirou 2 nele.
+            when(quizQuestionRepository.countByArticle()).thenReturn(List.of(new QuizQuestionRepository.QuestionCount() {
+                public UUID getArticleId() { return juros.getId(); }
+                public long getTotal() { return 3; }
+            }));
+            when(quizAttemptRepository.findBestScores(ana.getId())).thenReturn(List.of(new UserQuizAttemptRepository.BestScore() {
+                public UUID getArticleId() { return juros.getId(); }
+                public int getBestScore() { return 2; }
+            }));
 
             List<ArticleResponseDto> lista = educationService.list(ana.getId());
 
             assertThat(lista).extracting(ArticleResponseDto::isCompleted).containsExactly(false, true);
+            assertThat(lista).extracting(ArticleResponseDto::isHasQuiz).containsExactly(false, true);
+            assertThat(lista).extracting(ArticleResponseDto::getQuizTotal).containsExactly(0, 3);
+            assertThat(lista).extracting(ArticleResponseDto::getBestQuizScore).containsExactly(null, 2);
             ArticleResponseDto primeira = lista.get(0);
             assertThat(primeira.getVideoId()).isEqualTo("Y9ng5fVji-A");
             assertThat(primeira.getModuleTitle()).isEqualTo("Matemática Financeira");
