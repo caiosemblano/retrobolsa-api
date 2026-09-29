@@ -23,6 +23,16 @@ public class UserController {
     private final PortfolioRepository portfolioRepository;
     private final AchievementService achievementService;
 
+    /** O jogador terminou (ou pulou) o passo a passo do primeiro acesso. */
+    @PostMapping("/me/onboarded")
+    public ResponseEntity<Void> onboarded(Authentication authentication) {
+        User user = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Usuario nao encontrado"));
+        user.setOnboarded(true);
+        userRepository.save(user);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/profile")
     public ResponseEntity<UserProfileResponseDto> profile(Authentication authentication) {
         User user = userRepository.findByEmail(authentication.getName())
@@ -55,6 +65,8 @@ public class UserController {
                 .competitions(portfolios.size())
                 .history(history)
                 .achievements(achievementService.listForUser(user.getId()))
+                .onboarded(user.isOnboarded())
+                .mustChangePassword(user.isMustChangePassword())
                 .build());
     }
 }

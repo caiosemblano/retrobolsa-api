@@ -9,6 +9,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import com.retrobolsa.api.security.JwtUtil;
 
+import java.time.LocalDateTime;
+
 
 @Service
 @RequiredArgsConstructor
@@ -40,6 +42,7 @@ public class UserService {
                 .email(email)
                 .passwordHash(passwordHash)
                 .role(isAdminEmail(email) ? "ADMIN" : "PLAYER")
+                .consentedAt(Boolean.TRUE.equals(request.getAceiteTermos()) ? LocalDateTime.now() : null)
                 .build();
         userRepository.save(user);
 

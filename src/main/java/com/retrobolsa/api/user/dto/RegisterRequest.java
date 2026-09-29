@@ -23,6 +23,13 @@ public class RegisterRequest{
 
     @NotBlank(message = "Confirmação de senha necessário!!!")
     private String confirmarSenha;
+
+    /**
+     * Marcou "Tenho 18 anos ou mais, ou tenho autorização do meu responsável". O app
+     * web exige a caixa; aqui é opcional para não quebrar clientes mais antigos, e o
+     * momento do aceite fica gravado quando vem.
+     */
+    private Boolean aceiteTermos;
 }
 
 

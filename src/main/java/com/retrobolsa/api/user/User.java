@@ -40,6 +40,20 @@ public class User {
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    /** Já viu o passo a passo do primeiro acesso. */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean onboarded = false;
+
+    /** Quando marcou, no cadastro, que tem 18 anos ou autorização do responsável. */
+    @Column(name = "consented_at")
+    private LocalDateTime consentedAt;
+
+    /** Entrou com uma senha temporária dada pelo admin: precisa trocá-la antes de seguir. */
+    @Column(name = "must_change_password", nullable = false)
+    @Builder.Default
+    private boolean mustChangePassword = false;
+
 
 }
 

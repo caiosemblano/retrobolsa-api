@@ -16,4 +16,8 @@ public class UserProfileResponseDto {
     List<UserCompetitionHistoryDto> history;
     /** Catálogo completo de conquistas, com as desbloqueadas marcadas. */
     List<AchievementResponseDto> achievements;
+    /** Já viu o passo a passo do primeiro acesso. */
+    boolean onboarded;
+    /** Está com a senha temporária do admin: o app obriga a trocar. */
+    boolean mustChangePassword;
 }
