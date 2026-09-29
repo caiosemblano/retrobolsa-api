@@ -6,18 +6,22 @@ import com.retrobolsa.api.game.dto.UserProfileResponseDto;
 import com.retrobolsa.api.game.portfolio.Portfolio;
 import com.retrobolsa.api.game.portfolio.PortfolioRepository;
 import com.retrobolsa.api.service.AccountService;
+import com.retrobolsa.api.service.PersonalDataService;
 import com.retrobolsa.api.user.User;
 import com.retrobolsa.api.user.UserRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -27,6 +31,7 @@ public class UserController {
     private final PortfolioRepository portfolioRepository;
     private final AchievementService achievementService;
     private final AccountService accountService;
+    private final PersonalDataService personalDataService;
 
     /** O jogador terminou (ou pulou) o passo a passo do primeiro acesso. */
     @PostMapping("/me/onboarded")
@@ -51,6 +56,28 @@ public class UserController {
             @NotBlank(message = "Digite a senha atual.") String senhaAtual,
             @NotBlank(message = "Digite a nova senha.") @Size(min = 8, message = "A nova senha precisa ter no mínimo 8 caracteres.") String novaSenha,
             @NotBlank(message = "Confirme a nova senha.") String confirmarSenha) {}
+
+    /** LGPD: tudo o que o RetroBolsa guarda sobre a pessoa, num arquivo JSON. */
+    @GetMapping("/me/export")
+    public ResponseEntity<Map<String, Object>> export(Authentication authentication) {
+        User user = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Usuario nao encontrado"));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename("meus-dados-retrobolsa.json").build().toString())
+                .body(personalDataService.export(user));
+    }
+
+    /** LGPD: exclui a conta e tudo o que é dela, depois de conferir a senha. */
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> deleteAccount(@RequestBody DeleteRequest request, Authentication authentication) {
+        User user = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Usuario nao encontrado"));
+        personalDataService.deleteAccount(user, request.senha());
+        return ResponseEntity.noContent().build();
+    }
+
+    public record DeleteRequest(String senha) {}
 
     @GetMapping("/profile")
     public ResponseEntity<UserProfileResponseDto> profile(Authentication authentication) {

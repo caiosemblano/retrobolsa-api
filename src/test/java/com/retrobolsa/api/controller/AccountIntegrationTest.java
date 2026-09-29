@@ -9,21 +9,26 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** A conta do jogador: primeiro acesso, consentimento no cadastro e senha. */
+/** A conta do jogador: primeiro acesso, consentimento no cadastro, senha e LGPD. */
 class AccountIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private UserRepository userRepository;
     @Autowired private JwtUtil jwtUtil;
+    @Autowired private JdbcTemplate jdbc;
 
     @BeforeEach
     void limpar() {
@@ -103,6 +108,57 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/admin/users/" + admin.getId() + "/reset-password").header("Authorization", bearer(admin)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("baixar os dados traz perfil, progresso, aulas, quizzes, carteiras e turmas")
+    void baixarDados() throws Exception {
+        cadastrar("ana", ",\"aceiteTermos\":true");
+        User ana = userRepository.findByEmail("ana@retrobolsa.com").orElseThrow();
+        mockMvc.perform(post("/api/articles/bbbbbbbb-0001-0000-0000-000000000001/quiz").header("Authorization", bearer(ana))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(QuizRespostas.certas(jdbc, "bbbbbbbb-0001-0000-0000-000000000001")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/users/me/export").header("Authorization", bearer(ana)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("meus-dados-retrobolsa.json")))
+                .andExpect(jsonPath("$.perfil.email").value("ana@retrobolsa.com"))
+                .andExpect(jsonPath("$.perfil.aceiteDeIdadeOuAutorizacaoEm").isNotEmpty())
+                .andExpect(jsonPath("$.progresso.xp").value(greaterThan(0)))
+                .andExpect(jsonPath("$.aulasConcluidas[0].aula").value("O que é rentabilidade?"))
+                .andExpect(jsonPath("$.quizzes[0].acertos").value(3))
+                .andExpect(jsonPath("$.conquistas", not(empty())))
+                .andExpect(jsonPath("$.carteiras", empty()))
+                .andExpect(jsonPath("$.turmas", empty()))
+                .andExpect(jsonPath("$.notificacoes", empty()));
+    }
+
+    @Test
+    @DisplayName("excluir a conta pede a senha e apaga tudo o que é da pessoa")
+    void excluirConta() throws Exception {
+        cadastrar("ana", "");
+        User ana = userRepository.findByEmail("ana@retrobolsa.com").orElseThrow();
+        mockMvc.perform(post("/api/articles/bbbbbbbb-0001-0000-0000-000000000001/quiz").header("Authorization", bearer(ana))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(QuizRespostas.certas(jdbc, "bbbbbbbb-0001-0000-0000-000000000001")));
+
+        mockMvc.perform(delete("/api/users/me").header("Authorization", bearer(ana))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"senha\":\"errada-123\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("A senha não confere."));
+        assertThat(userRepository.findById(ana.getId())).isPresent();
+
+        mockMvc.perform(delete("/api/users/me").header("Authorization", bearer(ana))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"senha\":\"senha-forte-1\"}"))
+                .andExpect(status().isNoContent());
+        assertThat(userRepository.findById(ana.getId())).isEmpty();
+        for (String tabela : new String[]{"xp_events", "user_achievements", "user_article_progress", "user_quiz_attempts"}) {
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM " + tabela + " WHERE user_id = ?", Integer.class, ana.getId()))
+                    .as(tabela).isZero();
+        }
+        // O token de quem não existe mais não entra.
+        mockMvc.perform(get("/api/users/profile").header("Authorization", bearer(ana))).andExpect(status().isUnauthorized());
     }
 
     private ResultActions trocarSenha(User usuario, String atual, String nova, String confirmacao)
