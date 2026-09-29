@@ -1,6 +1,7 @@
 package com.retrobolsa.api.game.education;
 
 import com.retrobolsa.api.game.achievement.AchievementService;
+import com.retrobolsa.api.game.mission.MissionService;
 import com.retrobolsa.api.game.progress.ProgressService;
 import com.retrobolsa.api.game.quiz.QuizQuestionRepository;
 import com.retrobolsa.api.game.quiz.UserQuizAttemptRepository;
@@ -38,6 +39,7 @@ class EducationServiceTest {
     @Mock private QuizQuestionRepository quizQuestionRepository;
     @Mock private UserQuizAttemptRepository quizAttemptRepository;
     @Mock private ProgressService progressService;
+    @Mock private MissionService missionService;
 
     @InjectMocks private EducationService educationService;
 

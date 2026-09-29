@@ -12,6 +12,8 @@ import com.retrobolsa.api.game.competition.CompetitionRepository;
 import com.retrobolsa.api.game.debrief.DebriefAdvisor;
 import com.retrobolsa.api.game.debrief.DebriefService;
 import com.retrobolsa.api.game.dto.CurrentPortfolioDto;
+import com.retrobolsa.api.game.mission.MissionEvent;
+import com.retrobolsa.api.game.mission.MissionService;
 import com.retrobolsa.api.game.dto.PortfolioResultDto;
 import com.retrobolsa.api.game.progress.ProgressService;
 import com.retrobolsa.api.game.progress.XpService;
@@ -46,6 +48,9 @@ public class PortfolioService {
     private final AchievementService achievementService;
     private final DebriefService debriefService;
     private final ProgressService progressService;
+    private final MissionService missionService;
+
+    static final int DIVERSIFIED_MISSION_ASSETS = 3;
 
     /** Uma posição da carteira: o ativo e quanto foi posto nele. */
     public record Holding(Asset asset, BigDecimal amount) {}
@@ -78,6 +83,7 @@ public class PortfolioService {
         achievementService.evaluateOnSubmit(user, competition.getBudget(), allocations,
                 portfolioRepository.countByUserId(userId));
         progressService.reward(user, XpSource.PORTFOLIO, competition.getId().toString(), XpService.PORTFOLIO_XP);
+        recordDiversified(user, validated.holdings(), "rodada:" + competition.getId());
 
         return SubmitPortfolioResponseDto.builder()
                 .message("Carteira submetida com sucesso")
@@ -110,6 +116,7 @@ public class PortfolioService {
 
         achievementService.evaluateOnSubmit(portfolio.getUser(), competition.getBudget(), allocations,
                 portfolioRepository.countByUserId(userId));
+        recordDiversified(portfolio.getUser(), validated.holdings(), "rodada:" + competition.getId());
 
         return SubmitPortfolioResponseDto.builder()
                 .message("Carteira atualizada com sucesso")
@@ -131,6 +138,13 @@ public class PortfolioService {
                                         .build())
                                 .toList())
                         .build());
+    }
+
+    /** Missão "Diversifique": carteira com 3 ativos ou mais, de verdade ou de treino. */
+    public void recordDiversified(User user, List<Holding> holdings, String ref) {
+        if (holdings.size() >= DIVERSIFIED_MISSION_ASSETS) {
+            missionService.record(user, MissionEvent.PORTFOLIO_3, ref);
+        }
     }
 
     private Competition openCompetition(String competitionId) {

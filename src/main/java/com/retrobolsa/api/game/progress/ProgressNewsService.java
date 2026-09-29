@@ -7,6 +7,8 @@ import com.retrobolsa.api.game.dto.AchievementResponseDto;
 import com.retrobolsa.api.game.dto.ProgressNewsDto;
 import com.retrobolsa.api.game.education.Article;
 import com.retrobolsa.api.game.education.ArticleRepository;
+import com.retrobolsa.api.game.mission.MissionTemplate;
+import com.retrobolsa.api.game.mission.MissionTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,7 @@ public class ProgressNewsService {
     private final AchievementService achievementService;
     private final ArticleRepository articleRepository;
     private final CompetitionRepository competitionRepository;
+    private final MissionTemplateRepository missionTemplateRepository;
 
     @Transactional(readOnly = true)
     public ProgressNewsDto news(UUID userId) {
@@ -50,11 +53,16 @@ public class ProgressNewsService {
         Map<String, String> achievementTitles = achievements.stream()
                 .collect(Collectors.toMap(AchievementResponseDto::getCode, AchievementResponseDto::getTitle));
 
+        Map<String, String> missionTitles = events.stream().anyMatch(e -> e.getSource() == XpSource.MISSION)
+                ? missionTemplateRepository.findAll().stream()
+                        .collect(Collectors.toMap(MissionTemplate::getCode, MissionTemplate::getTitle))
+                : Map.of();
+
         List<ProgressNewsDto.Item> items = events.stream()
                 .map(e -> ProgressNewsDto.Item.builder()
                         .id(e.getId())
                         .source(e.getSource().name())
-                        .label(label(e, articleTitles, rounds, achievementTitles))
+                        .label(label(e, articleTitles, rounds, achievementTitles, missionTitles))
                         .amount(e.getAmount())
                         .build())
                 .toList();
@@ -81,7 +89,7 @@ public class ProgressNewsService {
     }
 
     private static String label(XpEvent e, Map<UUID, String> articles, Map<UUID, Integer> rounds,
-                                Map<String, String> achievements) {
+                                Map<String, String> achievements, Map<String, String> missions) {
         Function<String, String> article = ref -> articles.getOrDefault(UUID.fromString(ref), "aula");
         Function<String, String> round = ref -> {
             Integer number = rounds.get(UUID.fromString(ref));
@@ -94,6 +102,10 @@ public class ProgressNewsService {
             case BEAT_CDI -> "Acima do CDI na " + round.apply(e.getRefId());
             case ACHIEVEMENT -> "Conquista: " + achievements.getOrDefault(e.getRefId(), e.getRefId());
             case PRACTICE -> "Treino na " + round.apply(e.getRefId());
+            case MISSION -> {
+                String code = e.getRefId().split(":")[0];
+                yield "Missão da semana: " + missions.getOrDefault(code, code);
+            }
         };
     }
 }

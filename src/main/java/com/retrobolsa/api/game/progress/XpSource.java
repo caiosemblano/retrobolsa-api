@@ -13,5 +13,7 @@ public enum XpSource {
     /** Conquista desbloqueada (ref: código da conquista). */
     ACHIEVEMENT,
     /** Treino numa rodada já revelada (ref: id da rodada). */
-    PRACTICE
+    PRACTICE,
+    /** Missão semanal cumprida (ref: "<código>:<semana ISO>"). */
+    MISSION
 }

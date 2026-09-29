@@ -7,6 +7,8 @@ import com.retrobolsa.api.game.dto.CompetitionResponseDto;
 import com.retrobolsa.api.game.dto.PortfolioResultDto;
 import com.retrobolsa.api.game.dto.PracticeRoundDto;
 import com.retrobolsa.api.game.dto.SubmitPortfolioRequestDto;
+import com.retrobolsa.api.game.mission.MissionEvent;
+import com.retrobolsa.api.game.mission.MissionService;
 import com.retrobolsa.api.game.portfolio.PortfolioService;
 import com.retrobolsa.api.game.progress.ProgressService;
 import com.retrobolsa.api.game.progress.XpService;
@@ -43,6 +45,7 @@ public class PracticeService {
     private final PracticeRunRepository practiceRunRepository;
     private final UserRepository userRepository;
     private final ProgressService progressService;
+    private final MissionService missionService;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -93,6 +96,8 @@ public class PracticeService {
                 .createdAt(LocalDateTime.now(clock))
                 .build());
         progressService.reward(user, XpSource.PRACTICE, competitionId.toString(), XpService.PRACTICE_XP);
+        missionService.record(user, MissionEvent.PRACTICE, competitionId.toString());
+        portfolioService.recordDiversified(user, validated.holdings(), "treino:" + competitionId);
         return result;
     }
 
