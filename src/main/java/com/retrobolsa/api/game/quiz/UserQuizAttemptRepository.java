@@ -18,6 +18,10 @@ public interface UserQuizAttemptRepository extends JpaRepository<UserQuizAttempt
 
     long countByUserIdAndArticleId(UUID userId, UUID articleId);
 
+    /** Em quantas aulas diferentes o usuário já tirou nota máxima. */
+    @Query("SELECT COUNT(DISTINCT a.articleId) FROM UserQuizAttempt a WHERE a.userId = :userId AND a.score = a.total")
+    long countPerfectQuizzes(@Param("userId") UUID userId);
+
     interface BestScore {
         UUID getArticleId();
         int getBestScore();

@@ -131,23 +131,27 @@ class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("concluir aulas desbloqueia Estudante, depois Módulo Concluído e por fim Formado")
+    @DisplayName("concluir aulas desbloqueia Estudante, depois Módulo Concluído e por fim Formado (e as de quiz e nível)")
     void conclusoesDesbloqueiamConquistasDeAulas() throws Exception {
+        // Concluir aqui é passar no quiz com nota máxima: vem junto a "Nota Dez".
         concluir(AULA_RENTABILIDADE);
-        assertThat(conquistasDe(ana)).containsExactly(AchievementCodes.PRIMEIRA_AULA);
+        assertThat(conquistasDe(ana)).containsExactlyInAnyOrder(AchievementCodes.PRIMEIRA_AULA, AchievementCodes.NOTA_DEZ);
 
         // Fecha o módulo 1 (3 aulas).
         concluir(AULA_JUROS);
         concluir("bbbbbbbb-0003-0000-0000-000000000003");
         assertThat(conquistasDe(ana)).containsExactlyInAnyOrder(
-                AchievementCodes.PRIMEIRA_AULA, AchievementCodes.MODULO_COMPLETO);
+                AchievementCodes.PRIMEIRA_AULA, AchievementCodes.NOTA_DEZ, AchievementCodes.MODULO_COMPLETO);
 
         // Conclui as 17 restantes: todos os 7 módulos fechados.
         for (int i = 4; i <= 20; i++) {
             concluir(String.format("bbbbbbbb-%04d-0000-0000-%012d", i, i));
         }
+        // 20 aulas (400 XP) e 20 quizzes perfeitos (300), mais o XP das conquistas: passa do nível 5,
+        // e a conquista de nível ("Analista") sai em cadeia.
         assertThat(conquistasDe(ana)).containsExactlyInAnyOrder(
-                AchievementCodes.PRIMEIRA_AULA, AchievementCodes.MODULO_COMPLETO, AchievementCodes.FORMADO);
+                AchievementCodes.PRIMEIRA_AULA, AchievementCodes.NOTA_DEZ, AchievementCodes.MODULO_COMPLETO,
+                AchievementCodes.ESTUDIOSO, AchievementCodes.FORMADO, AchievementCodes.NIVEL_5);
     }
 
     /** Conclui a aula como o aluno faria: respondendo o quiz, aqui com todas as respostas certas. */

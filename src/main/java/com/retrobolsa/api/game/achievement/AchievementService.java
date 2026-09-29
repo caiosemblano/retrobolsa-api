@@ -1,6 +1,9 @@
 package com.retrobolsa.api.game.achievement;
 
 import com.retrobolsa.api.game.dto.AchievementResponseDto;
+import com.retrobolsa.api.game.dto.ProgressDto;
+import com.retrobolsa.api.game.progress.XpService;
+import com.retrobolsa.api.game.progress.XpSource;
 import com.retrobolsa.api.game.portfolio.Allocation;
 import com.retrobolsa.api.user.User;
 import lombok.RequiredArgsConstructor;
@@ -27,9 +30,13 @@ public class AchievementService {
     static final int MIN_PLAYERS_FOR_CHAMPION = 2;
     /** Com 3 jogadores ou menos, todo mundo estaria no pódio. */
     static final int MIN_PLAYERS_FOR_PODIUM = 4;
+    static final int STUDIOUS_PERFECT_QUIZZES = 10;
+    static final int ANALYST_LEVEL = 5;
+    static final int CONSISTENCY_WEEKS = 4;
 
     private final AchievementRepository achievementRepository;
     private final UserAchievementRepository userAchievementRepository;
+    private final XpService xpService;
 
     // -------------------------------------------------------------------------
     // Gatilhos
@@ -51,6 +58,32 @@ public class AchievementService {
     @Transactional
     public List<String> evaluateOnRoundResult(User user, int rank, BigDecimal totalReturn, int fieldSize) {
         return unlock(user, codesForRoundResult(rank, totalReturn, fieldSize));
+    }
+
+    /**
+     * Resultado da rodada com as referências do período (em %; nulas se não há dados):
+     * além das regras de posição e rentabilidade, bateu o CDI e venceu a inflação.
+     */
+    @Transactional
+    public List<String> evaluateOnRoundResult(User user, int rank, BigDecimal totalReturn, int fieldSize,
+                                              BigDecimal cdiReturn, BigDecimal ipcaReturn) {
+        List<String> codes = new ArrayList<>(codesForRoundResult(rank, totalReturn, fieldSize));
+        codes.addAll(codesForBenchmarks(totalReturn, cdiReturn, ipcaReturn));
+        return unlock(user, codes);
+    }
+
+    /** Avalia as conquistas de quiz, logo após uma correção. */
+    @Transactional
+    public List<String> evaluateOnQuiz(User user, boolean perfect, long perfectQuizzes) {
+        return unlock(user, codesForQuiz(perfect, perfectQuizzes));
+    }
+
+    /** Conquistas que dependem do XP acumulado: nível e semanas seguidas. */
+    @Transactional
+    public List<String> evaluateProgress(User user) {
+        if (ADMIN_ROLE.equals(user.getRole())) return List.of();
+        ProgressDto progress = xpService.summary(user.getId());
+        return unlock(user, codesForProgress(progress.getLevel(), progress.getStreakWeeks()), false);
     }
 
     /** Avalia as conquistas de estudo, logo após uma aula ser concluída. */
@@ -106,6 +139,33 @@ public class AchievementService {
         return codes;
     }
 
+    /** Acima (e não igual) da referência: empatar com o CDI não é batê-lo. */
+    static List<String> codesForBenchmarks(BigDecimal totalReturn, BigDecimal cdiReturn, BigDecimal ipcaReturn) {
+        List<String> codes = new ArrayList<>();
+        if (totalReturn == null) return codes;
+        if (ipcaReturn != null && totalReturn.compareTo(ipcaReturn) > 0) {
+            codes.add(AchievementCodes.VENCEU_INFLACAO);
+        }
+        if (cdiReturn != null && totalReturn.compareTo(cdiReturn) > 0) {
+            codes.add(AchievementCodes.BATEU_CDI);
+        }
+        return codes;
+    }
+
+    static List<String> codesForQuiz(boolean perfect, long perfectQuizzes) {
+        List<String> codes = new ArrayList<>();
+        if (perfect) codes.add(AchievementCodes.NOTA_DEZ);
+        if (perfectQuizzes >= STUDIOUS_PERFECT_QUIZZES) codes.add(AchievementCodes.ESTUDIOSO);
+        return codes;
+    }
+
+    static List<String> codesForProgress(int level, int streakWeeks) {
+        List<String> codes = new ArrayList<>();
+        if (level >= ANALYST_LEVEL) codes.add(AchievementCodes.NIVEL_5);
+        if (streakWeeks >= CONSISTENCY_WEEKS) codes.add(AchievementCodes.CONSTANCIA);
+        return codes;
+    }
+
     static List<String> codesForLessons(long completedInModule, long lessonsInModule,
                                         long completedTotal, long totalLessons) {
         List<String> codes = new ArrayList<>();
@@ -138,6 +198,15 @@ public class AchievementService {
      */
     @Transactional
     public List<String> unlock(User user, Collection<String> codes) {
+        return unlock(user, codes, true);
+    }
+
+    /**
+     * @param evaluateProgressAfter se o XP das conquistas novas deve levar a avaliar as de
+     *                              progresso. Falso quando as próprias conquistas são as de
+     *                              progresso: elas não levam a outras, e assim não há recursão.
+     */
+    private List<String> unlock(User user, Collection<String> codes, boolean evaluateProgressAfter) {
         if (codes.isEmpty() || ADMIN_ROLE.equals(user.getRole())) {
             return List.of();
         }
@@ -155,7 +224,13 @@ public class AchievementService {
         for (Achievement achievement : achievements) {
             if (userAchievementRepository.insertIfAbsent(user.getId(), achievement.getId(), now) > 0) {
                 newlyUnlocked.add(achievement.getCode());
+                xpService.award(user, XpSource.ACHIEVEMENT, achievement.getCode(),
+                        XpService.ACHIEVEMENT_XP.getOrDefault(achievement.getRarity(), 0));
             }
+        }
+        // O XP das conquistas novas pode ter levado a um nível que também é conquista.
+        if (evaluateProgressAfter && !newlyUnlocked.isEmpty()) {
+            newlyUnlocked.addAll(evaluateProgress(user));
         }
         return newlyUnlocked;
     }

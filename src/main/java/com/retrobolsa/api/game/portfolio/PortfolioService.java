@@ -12,6 +12,9 @@ import com.retrobolsa.api.game.competition.CompetitionRepository;
 import com.retrobolsa.api.game.debrief.DebriefAdvisor;
 import com.retrobolsa.api.game.debrief.DebriefService;
 import com.retrobolsa.api.game.dto.PortfolioResultDto;
+import com.retrobolsa.api.game.progress.ProgressService;
+import com.retrobolsa.api.game.progress.XpService;
+import com.retrobolsa.api.game.progress.XpSource;
 import com.retrobolsa.api.game.dto.SubmitPortfolioRequestDto;
 import com.retrobolsa.api.game.dto.SubmitPortfolioResponseDto;
 import com.retrobolsa.api.game.simulation.SimulationEngine;
@@ -40,6 +43,7 @@ public class PortfolioService {
     private final SimulationEngine simulationEngine;
     private final AchievementService achievementService;
     private final DebriefService debriefService;
+    private final ProgressService progressService;
 
     @Transactional
     public SubmitPortfolioResponseDto submit(UUID userId, SubmitPortfolioRequestDto request) {
@@ -136,6 +140,7 @@ public class PortfolioService {
 
         achievementService.evaluateOnSubmit(user, competition.getBudget(), allocations,
                 portfolioRepository.countByUserId(userId));
+        progressService.reward(user, XpSource.PORTFOLIO, competition.getId().toString(), XpService.PORTFOLIO_XP);
 
         return SubmitPortfolioResponseDto.builder()
                 .message("Carteira submetida com sucesso")
@@ -262,13 +267,14 @@ public class PortfolioService {
             portfolio.setFinalValue(result.finalValue());
         }
 
-        recalculateRanks(competition.getId());
+        recalculateRanks(competition);
         competition.setStatus("simulated");
         competitionRepository.save(competition);
     }
 
-    private void recalculateRanks(UUID competitionId) {
-        List<Portfolio> portfolios = portfolioRepository.findByCompetitionIdOrderByTotalReturnDesc(competitionId);
+    private void recalculateRanks(Competition competition) {
+        List<Portfolio> portfolios = portfolioRepository.findByCompetitionIdOrderByTotalReturnDesc(competition.getId());
+        DebriefService.References references = debriefService.references(competition);
         for (int i = 0; i < portfolios.size(); i++) {
             Portfolio portfolio = portfolios.get(i);
             portfolio.setRank(i + 1);
@@ -281,7 +287,12 @@ public class PortfolioService {
                 user.setTotalScore(newScore);
                 userRepository.save(user);
             }
-            achievementService.evaluateOnRoundResult(user, i + 1, totalReturn, portfolios.size());
+            achievementService.evaluateOnRoundResult(user, i + 1, totalReturn, portfolios.size(),
+                    references.cdi(), references.ipca());
+            // Acima (e não igual) do CDI, como na conquista "Bateu o CDI".
+            if (totalReturn != null && references.cdi() != null && totalReturn.compareTo(references.cdi()) > 0) {
+                progressService.reward(user, XpSource.BEAT_CDI, competition.getId().toString(), XpService.BEAT_CDI_XP);
+            }
         }
         portfolioRepository.saveAll(portfolios);
     }

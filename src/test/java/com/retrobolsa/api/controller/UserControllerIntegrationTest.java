@@ -166,7 +166,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/users/profile")
                         .header("Authorization", "Bearer " + jwtUtil.generateToken(novato.getEmail())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.achievements", hasSize(12)))
+                .andExpect(jsonPath("$.achievements", hasSize(18)))
                 .andExpect(jsonPath("$.achievements[?(@.unlocked == true)]", hasSize(0)))
                 .andExpect(jsonPath("$.achievements[0].code").value(AchievementCodes.PRIMEIRA_CARTEIRA))
                 .andExpect(jsonPath("$.achievements[0].title").value("Primeira Carteira"))
@@ -183,7 +183,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/users/profile")
                         .header("Authorization", "Bearer " + jwtUtil.generateToken(ana.getEmail())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.achievements", hasSize(12)))
+                .andExpect(jsonPath("$.achievements", hasSize(18)))
                 .andExpect(jsonPath("$.achievements[?(@.unlocked == true)].code",
                         containsInAnyOrder(AchievementCodes.PRIMEIRA_CARTEIRA, AchievementCodes.CAMPEAO_RODADA)))
                 // Primeira Carteira é a 1ª do catálogo; Campeão da Rodada, a 11ª (lendária).

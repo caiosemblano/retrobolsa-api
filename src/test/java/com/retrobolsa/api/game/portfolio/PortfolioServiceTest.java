@@ -2,6 +2,9 @@ package com.retrobolsa.api.game.portfolio;
 
 import com.retrobolsa.api.game.achievement.AchievementService;
 import com.retrobolsa.api.game.debrief.DebriefService;
+import com.retrobolsa.api.game.progress.ProgressService;
+import com.retrobolsa.api.game.progress.XpService;
+import com.retrobolsa.api.game.progress.XpSource;
 import com.retrobolsa.api.game.asset.Asset;
 import com.retrobolsa.api.game.asset.AssetRepository;
 import com.retrobolsa.api.game.asset.AssetSnapshotRepository;
@@ -12,6 +15,7 @@ import com.retrobolsa.api.game.competition.CompetitionRepository;
 import com.retrobolsa.api.game.simulation.SimulationEngine;
 import com.retrobolsa.api.user.User;
 import com.retrobolsa.api.user.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -30,7 +34,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +54,7 @@ class PortfolioServiceTest {
     @Mock private SimulationEngine simulationEngine;
     @Mock private AchievementService achievementService;
     @Mock private DebriefService debriefService;
+    @Mock private ProgressService progressService;
 
     @InjectMocks private PortfolioService portfolioService;
 
@@ -118,6 +125,12 @@ class PortfolioServiceTest {
     @Nested
     @DisplayName("simulateCompetition()")
     class SimulateCompetition {
+
+        @BeforeEach
+        void semDadosDeReferencia() {
+            // Sem CDI e inflação do período: as recompensas por referência não entram nestes testes.
+            lenient().when(debriefService.references(any())).thenReturn(new DebriefService.References(null, null));
+        }
 
         @Test
         @DisplayName("recusa simular rodada que não está fechada")
@@ -196,8 +209,31 @@ class PortfolioServiceTest {
             portfolioService.simulateCompetition(competition);
 
             // O rank avaliado é o final (pós-ordenação), não a ordem de submissão.
-            verify(achievementService).evaluateOnRoundResult(beto, 1, new BigDecimal("18.00"), 2);
-            verify(achievementService).evaluateOnRoundResult(ana, 2, new BigDecimal("-3.10"), 2);
+            verify(achievementService).evaluateOnRoundResult(beto, 1, new BigDecimal("18.00"), 2, null, null);
+            verify(achievementService).evaluateOnRoundResult(ana, 2, new BigDecimal("-3.10"), 2, null, null);
+        }
+
+        @Test
+        @DisplayName("quem termina acima do CDI do período ganha o XP de 'bateu o CDI'; empatar ou ficar abaixo, não")
+        void deveDarXpPorBaterOCdi() {
+            Competition competition = buildCompetition("closed");
+            User ana = User.builder().id(UUID.randomUUID()).username("ana").build();
+            User beto = User.builder().id(UUID.randomUUID()).username("beto").build();
+            Portfolio anaPortfolio = buildPortfolio(ana, competition);
+            Portfolio betoPortfolio = buildPortfolio(beto, competition);
+            when(portfolioRepository.findByCompetitionIdOrderByTotalReturnDesc(competition.getId()))
+                    .thenReturn(List.of(anaPortfolio, betoPortfolio), List.of(betoPortfolio, anaPortfolio));
+            stubQuotes();
+            stubEngine(new BigDecimal("12.00"), new BigDecimal("18.00"));
+            when(debriefService.references(competition))
+                    .thenReturn(new DebriefService.References(new BigDecimal("12.00"), new BigDecimal("5.00")));
+
+            portfolioService.simulateCompetition(competition);
+
+            verify(progressService).reward(beto, XpSource.BEAT_CDI, competition.getId().toString(), XpService.BEAT_CDI_XP);
+            verify(progressService, never()).reward(eq(ana), eq(XpSource.BEAT_CDI), any(), anyInt());
+            verify(achievementService).evaluateOnRoundResult(beto, 1, new BigDecimal("18.00"), 2,
+                    new BigDecimal("12.00"), new BigDecimal("5.00"));
         }
     }
 }

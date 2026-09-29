@@ -54,21 +54,21 @@ class AchievementCatalogIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("o seed do V9 tem exatamente as conquistas declaradas em AchievementCodes")
+    @DisplayName("o seed do V9 e do V20 tem exatamente as conquistas declaradas em AchievementCodes")
     void seedBateComAsConstantes() throws IllegalAccessException {
         Set<String> noBanco = new HashSet<>();
         achievementRepository.findAll().forEach(achievement -> noBanco.add(achievement.getCode()));
 
-        assertThat(noBanco).hasSize(12).isEqualTo(codigosDeclaradosEmJava());
+        assertThat(noBanco).hasSize(18).isEqualTo(codigosDeclaradosEmJava());
     }
 
     @Test
-    @DisplayName("o catálogo sai na ordem de exibição 1..12, com título e descrição preenchidos")
+    @DisplayName("o catálogo sai na ordem de exibição 1..18, com título e descrição preenchidos")
     void catalogoOrdenadoECompleto() {
         List<Achievement> catalogo = achievementRepository.findAllByOrderByDisplayOrderAsc();
 
         assertThat(catalogo).extracting(Achievement::getDisplayOrder)
-                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18);
         assertThat(catalogo).allSatisfy(achievement -> {
             assertThat(achievement.getTitle()).isNotBlank();
             assertThat(achievement.getDescription()).isNotBlank();
@@ -91,7 +91,7 @@ class AchievementCatalogIntegrationTest extends AbstractIntegrationTest {
         assertThat(userAchievementRepository.findAllByIdUserId(ana.getId())).hasSize(2);
 
         List<AchievementResponseDto> lista = achievementService.listForUser(ana.getId());
-        assertThat(lista).hasSize(12);
+        assertThat(lista).hasSize(18);
         assertThat(lista).filteredOn(AchievementResponseDto::isUnlocked)
                 .extracting(AchievementResponseDto::getCode)
                 .containsExactlyInAnyOrder(AchievementCodes.PRIMEIRA_CARTEIRA, AchievementCodes.NO_AZUL);

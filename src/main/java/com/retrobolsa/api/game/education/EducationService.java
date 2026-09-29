@@ -2,6 +2,9 @@ package com.retrobolsa.api.game.education;
 
 import com.retrobolsa.api.game.achievement.AchievementService;
 import com.retrobolsa.api.game.dto.ArticleResponseDto;
+import com.retrobolsa.api.game.progress.ProgressService;
+import com.retrobolsa.api.game.progress.XpService;
+import com.retrobolsa.api.game.progress.XpSource;
 import com.retrobolsa.api.game.quiz.QuizQuestionRepository;
 import com.retrobolsa.api.game.quiz.UserQuizAttemptRepository;
 import com.retrobolsa.api.user.User;
@@ -24,6 +27,7 @@ public class EducationService {
     private final AchievementService achievementService;
     private final QuizQuestionRepository quizQuestionRepository;
     private final UserQuizAttemptRepository quizAttemptRepository;
+    private final ProgressService progressService;
 
     /**
      * Quatro queries no total, qualquer que seja o número de aulas: artigos com módulo
@@ -76,6 +80,7 @@ public class EducationService {
 
         // Avalia mesmo se a aula já estava concluída: o desbloqueio é idempotente, e assim
         // quem concluiu aulas antes das conquistas existirem as recebe na próxima conclusão.
+        progressService.reward(user, XpSource.LESSON, articleId.toString(), XpService.LESSON_XP);
         UUID moduleId = article.getModule().getId();
         achievementService.evaluateOnLessonCompleted(user,
                 progressRepository.countCompletedInModule(user.getId(), moduleId),

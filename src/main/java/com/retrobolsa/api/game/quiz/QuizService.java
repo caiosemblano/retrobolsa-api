@@ -4,7 +4,11 @@ import com.retrobolsa.api.game.dto.QuizQuestionDto;
 import com.retrobolsa.api.game.dto.QuizResultDto;
 import com.retrobolsa.api.game.dto.SubmitQuizRequestDto;
 import com.retrobolsa.api.game.education.ArticleRepository;
+import com.retrobolsa.api.game.achievement.AchievementService;
 import com.retrobolsa.api.game.education.EducationService;
+import com.retrobolsa.api.game.progress.ProgressService;
+import com.retrobolsa.api.game.progress.XpService;
+import com.retrobolsa.api.game.progress.XpSource;
 import com.retrobolsa.api.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,6 +28,8 @@ public class QuizService {
     private final UserQuizAttemptRepository attemptRepository;
     private final ArticleRepository articleRepository;
     private final EducationService educationService;
+    private final ProgressService progressService;
+    private final AchievementService achievementService;
 
     /** Acertar pelo menos esta fração das perguntas conclui a aula (2 de 3). */
     static boolean passed(int score, int total) {
@@ -111,6 +117,11 @@ public class QuizService {
         if (passed) {
             educationService.complete(user, articleId);
         }
+        boolean perfect = score == questions.size();
+        if (perfect) {
+            progressService.reward(user, XpSource.QUIZ_PERFECT, articleId.toString(), XpService.QUIZ_PERFECT_XP);
+        }
+        achievementService.evaluateOnQuiz(user, perfect, attemptRepository.countPerfectQuizzes(user.getId()));
         return QuizResultDto.builder()
                 .score(score)
                 .total(questions.size())

@@ -24,13 +24,20 @@ public final class AchievementCodes {
     public static final String MODULO_COMPLETO = "MODULO_COMPLETO";
     public static final String CAMPEAO_RODADA = "CAMPEAO_RODADA";
     public static final String FORMADO = "FORMADO";
+    public static final String NOTA_DEZ = "NOTA_DEZ";
+    public static final String VENCEU_INFLACAO = "VENCEU_INFLACAO";
+    public static final String BATEU_CDI = "BATEU_CDI";
+    public static final String ESTUDIOSO = "ESTUDIOSO";
+    public static final String NIVEL_5 = "NIVEL_5";
+    public static final String CONSTANCIA = "CONSTANCIA";
 
     /**
      * Conquistas que nascem de carteiras e rodadas. O reset do jogo apaga carteiras
      * e zera pontos, então apaga também estas — mas não as de aulas, porque o
-     * progresso das aulas sobrevive ao reset.
+     * progresso das aulas sobrevive ao reset. Nível e constância também ficam: o XP
+     * de aulas continua lá, e a conquista registra algo que de fato aconteceu.
      */
     public static final Set<String> GAME = Set.of(
             PRIMEIRA_CARTEIRA, TUDO_INVESTIDO, NO_AZUL, EQUILIBRISTA, DIVERSIFICADOR,
-            DOIS_DIGITOS, VETERANO, PODIO, CAMPEAO_RODADA);
+            DOIS_DIGITOS, VETERANO, PODIO, CAMPEAO_RODADA, VENCEU_INFLACAO, BATEU_CDI);
 }

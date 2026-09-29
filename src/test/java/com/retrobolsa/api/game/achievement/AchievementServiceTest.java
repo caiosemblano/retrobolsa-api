@@ -1,9 +1,13 @@
 package com.retrobolsa.api.game.achievement;
 
+import com.retrobolsa.api.game.progress.XpSource;
+import com.retrobolsa.api.game.dto.ProgressDto;
+import com.retrobolsa.api.game.progress.XpService;
 import com.retrobolsa.api.game.asset.Asset;
 import com.retrobolsa.api.game.dto.AchievementResponseDto;
 import com.retrobolsa.api.game.portfolio.Allocation;
 import com.retrobolsa.api.user.User;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,6 +30,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -38,7 +43,14 @@ class AchievementServiceTest {
     @Mock private AchievementRepository achievementRepository;
     @Mock private UserAchievementRepository userAchievementRepository;
 
+    @Mock private XpService xpService;
     @InjectMocks private AchievementService achievementService;
+
+    @BeforeEach
+    void progressoInicial() {
+        // Sem XP nenhum: as conquistas de nível e constância não entram nos testes que não são sobre elas.
+        lenient().when(xpService.summary(any())).thenReturn(ProgressDto.builder().level(1).streakWeeks(0).build());
+    }
 
     // -------------------------------------------------------------------------
     // Fixtures
@@ -395,6 +407,74 @@ class AchievementServiceTest {
             List<AchievementResponseDto> lista = achievementService.listForUser(jogador.getId());
 
             assertThat(lista).hasSize(2).noneMatch(AchievementResponseDto::isUnlocked);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Conquistas de referências, quiz e progresso (V20) e o XP das conquistas
+    // -------------------------------------------------------------------------
+
+    @Nested
+    class Progresso {
+
+        @Test
+        @DisplayName("bateu o CDI e venceu a inflação só acima, não empatando")
+        void referencias() {
+            assertThat(AchievementService.codesForBenchmarks(new BigDecimal("12.01"), new BigDecimal("12"), new BigDecimal("5")))
+                    .containsExactlyInAnyOrder(BATEU_CDI, VENCEU_INFLACAO);
+            assertThat(AchievementService.codesForBenchmarks(new BigDecimal("12"), new BigDecimal("12"), new BigDecimal("12"))).isEmpty();
+            assertThat(AchievementService.codesForBenchmarks(new BigDecimal("8"), new BigDecimal("12"), new BigDecimal("5")))
+                    .containsExactly(VENCEU_INFLACAO);
+            // Sem dados do período ou sem resultado, nada.
+            assertThat(AchievementService.codesForBenchmarks(new BigDecimal("50"), null, null)).isEmpty();
+            assertThat(AchievementService.codesForBenchmarks(null, BigDecimal.ONE, BigDecimal.ONE)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Nota Dez no quiz perfeito; Estudioso na décima aula com nota máxima")
+        void quiz() {
+            assertThat(AchievementService.codesForQuiz(true, 1)).containsExactly(NOTA_DEZ);
+            assertThat(AchievementService.codesForQuiz(false, 9)).isEmpty();
+            assertThat(AchievementService.codesForQuiz(true, 10)).containsExactlyInAnyOrder(NOTA_DEZ, ESTUDIOSO);
+        }
+
+        @Test
+        @DisplayName("Analista no nível 5; Constância em 4 semanas seguidas")
+        void nivelESemanas() {
+            assertThat(AchievementService.codesForProgress(4, 3)).isEmpty();
+            assertThat(AchievementService.codesForProgress(5, 3)).containsExactly(NIVEL_5);
+            assertThat(AchievementService.codesForProgress(1, 4)).containsExactly(CONSTANCIA);
+        }
+
+        @Test
+        @DisplayName("cada conquista nova dá XP pela raridade; a que já existia não dá")
+        void xpPelaRaridade() {
+            Achievement podio = conquista(PODIO, 9);
+            podio.setRarity("epico");
+            when(achievementRepository.findAllByCodeIn(anyCollection())).thenReturn(List.of(podio));
+            when(userAchievementRepository.insertIfAbsent(any(), any(), any())).thenReturn(1, 0);
+
+            achievementService.unlock(jogador, List.of(PODIO));
+            achievementService.unlock(jogador, List.of(PODIO));
+
+            verify(xpService, times(1)).award(jogador, XpSource.ACHIEVEMENT, PODIO, 50);
+        }
+
+        @Test
+        @DisplayName("o XP de uma conquista que leva ao nível 5 desbloqueia, em cadeia, a de nível")
+        void cadeiaAteONivel() {
+            Achievement formado = conquista(FORMADO, 12);
+            Achievement analista = conquista(NIVEL_5, 17);
+            when(achievementRepository.findAllByCodeIn(anyCollection())).thenAnswer(chamada -> {
+                java.util.Collection<?> pedidos = chamada.getArgument(0);
+                return java.util.stream.Stream.of(formado, analista).filter(a -> pedidos.contains(a.getCode())).toList();
+            });
+            when(userAchievementRepository.insertIfAbsent(any(), any(), any())).thenReturn(1);
+            when(xpService.summary(jogador.getId())).thenReturn(ProgressDto.builder().level(5).streakWeeks(1).build());
+
+            List<String> novas = achievementService.unlock(jogador, List.of(FORMADO));
+
+            assertThat(novas).containsExactly(FORMADO, NIVEL_5);
         }
     }
 }

@@ -72,6 +72,19 @@ public class DebriefService {
                 tips);
     }
 
+    /** CDI e inflação acumulados no período da rodada (em %; nulos sem dados), para as recompensas do resultado. */
+    @Transactional(readOnly = true)
+    public References references(Competition competition) {
+        int start = competition.getStartYear();
+        int end = competition.getEndYear();
+        List<BenchmarkDto> benchmarks = benchmarkCalculator.calculate(
+                macroIndicatorRepository.findAllByYearBetweenOrderByYearAsc(start, end - 1),
+                competition.getBudget(), start, end);
+        return new References(benchmarkReturn(benchmarks, "CDI"), benchmarkReturn(benchmarks, "IPCA"));
+    }
+
+    public record References(BigDecimal cdi, BigDecimal ipca) {}
+
     private BigDecimal benchmarkReturn(List<BenchmarkDto> benchmarks, String code) {
         return benchmarks.stream().filter(b -> b.getCode().equals(code))
                 .map(BenchmarkDto::getTotalReturn).findFirst().orElse(null);
