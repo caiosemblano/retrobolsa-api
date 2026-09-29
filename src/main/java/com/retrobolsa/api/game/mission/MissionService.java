@@ -2,6 +2,7 @@ package com.retrobolsa.api.game.mission;
 
 import com.retrobolsa.api.game.achievement.AchievementService;
 import com.retrobolsa.api.game.dto.MissionWeekDto;
+import com.retrobolsa.api.game.notification.NotificationService;
 import com.retrobolsa.api.game.progress.XpService;
 import com.retrobolsa.api.game.progress.XpSource;
 import com.retrobolsa.api.user.User;
@@ -39,6 +40,7 @@ public class MissionService {
     private final NamedParameterJdbcTemplate jdbc;
     private final XpService xpService;
     private final AchievementService achievementService;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     /**
@@ -103,6 +105,7 @@ public class MissionService {
                 if (xpService.award(user, XpSource.MISSION, mission.getCode() + ":" + week, mission.getXp())) {
                     achievementService.evaluateProgress(user);
                 }
+                notificationService.missionCompleted(user.getId(), mission.getTitle(), mission.getXp());
                 completedNow.add(mission);
             }
         }

@@ -110,6 +110,10 @@ class MissionControllerIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/api/progress/news").header("Authorization", bearer(ana)))
                 .andExpect(jsonPath("$.items[*].label", hasItem("Missão da semana: Conclua 2 aulas")));
+        mockMvc.perform(get("/api/notifications").header("Authorization", bearer(ana)))
+                .andExpect(jsonPath("$[0].type").value("MISSAO_CUMPRIDA"))
+                .andExpect(jsonPath("$[0].title").value("Missão cumprida: Conclua 2 aulas"))
+                .andExpect(jsonPath("$[0].body").value("+30 XP"));
     }
 
     @Test

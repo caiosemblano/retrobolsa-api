@@ -10,6 +10,7 @@ import com.retrobolsa.api.game.dto.AssetDto;
 import com.retrobolsa.api.game.dto.CompetitionResponseDto;
 import com.retrobolsa.api.game.dto.EconomicIndicatorDto;
 import com.retrobolsa.api.game.macro.MacroIndicatorRepository;
+import com.retrobolsa.api.game.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ public class CompetitionService {
     private final AchievementService achievementService;
     private final MacroIndicatorRepository macroIndicatorRepository;
     private final XpService xpService;
+    private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public CompetitionResponseDto getActiveCompetition() {
@@ -155,6 +157,7 @@ public class CompetitionService {
         next.setStatus("open");
         competitionRepository.save(current);
         competitionRepository.save(next);
+        notificationService.roundOpened(next);
     }
 
     private final jakarta.persistence.EntityManager entityManager;
@@ -177,6 +180,7 @@ public class CompetitionService {
         });
         target.setStatus("open");
         competitionRepository.save(target);
+        notificationService.roundOpened(target);
     }
 
     @Transactional(readOnly = true)

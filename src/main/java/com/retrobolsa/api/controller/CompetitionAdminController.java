@@ -5,6 +5,7 @@ import com.retrobolsa.api.game.competition.CompetitionRepository;
 import com.retrobolsa.api.game.competition.CompetitionAdminService;
 import com.retrobolsa.api.game.dto.AdminAssetDto;
 import com.retrobolsa.api.game.dto.CreateCompetitionRequestDto;
+import com.retrobolsa.api.game.notification.NotificationService;
 import com.retrobolsa.api.game.portfolio.PortfolioService;
 import com.retrobolsa.api.game.competition.CompetitionService;
 import jakarta.validation.Valid;
@@ -24,6 +25,7 @@ public class CompetitionAdminController {
     private final CompetitionAdminService competitionAdminService;
     private final PortfolioService portfolioService;
     private final CompetitionService competitionService;
+    private final NotificationService notificationService;
 
     @GetMapping
     public ResponseEntity<List<Competition>> list() {
@@ -52,6 +54,7 @@ public class CompetitionAdminController {
         }
         competition.setStatus("open");
         competitionRepository.save(competition);
+        notificationService.roundOpened(competition);
         return ResponseEntity.noContent().build();
     }
 
@@ -92,6 +95,7 @@ public class CompetitionAdminController {
         portfolioService.simulateCompetition(competition);
         competition.setStatus("revealed");
         competitionRepository.save(competition);
+        notificationService.resultRevealed(competition);
         return ResponseEntity.noContent().build();
     }
 
@@ -109,6 +113,7 @@ public class CompetitionAdminController {
         }
         competition.setStatus("revealed");
         competitionRepository.save(competition);
+        notificationService.resultRevealed(competition);
         return ResponseEntity.noContent().build();
     }
 

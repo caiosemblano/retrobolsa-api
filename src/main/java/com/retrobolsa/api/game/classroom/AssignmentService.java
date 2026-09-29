@@ -3,7 +3,9 @@ package com.retrobolsa.api.game.classroom;
 import com.retrobolsa.api.exception.NotFoundException;
 import com.retrobolsa.api.game.dto.AssignmentDto;
 import com.retrobolsa.api.game.dto.StudentAssignmentDto;
+import com.retrobolsa.api.game.education.Article;
 import com.retrobolsa.api.game.education.ArticleRepository;
+import com.retrobolsa.api.game.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,7 @@ public class AssignmentService {
     private final ClassroomAssignmentRepository assignmentRepository;
     private final ArticleRepository articleRepository;
     private final NamedParameterJdbcTemplate jdbc;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     @Transactional
@@ -38,9 +41,8 @@ public class AssignmentService {
         if (classroom.isArchived()) {
             throw new IllegalArgumentException("Desarquive a turma para passar tarefas.");
         }
-        if (!articleRepository.existsById(articleId)) {
-            throw new IllegalArgumentException("Aula não encontrada.");
-        }
+        Article article = articleRepository.findById(articleId)
+                .orElseThrow(() -> new IllegalArgumentException("Aula não encontrada."));
         LocalDateTime now = LocalDateTime.now(clock);
         if (!dueAt.isAfter(now)) {
             throw new IllegalArgumentException("O prazo precisa ser depois de agora.");
@@ -48,8 +50,11 @@ public class AssignmentService {
         if (assignmentRepository.existsByClassroomIdAndArticleId(classroomId, articleId)) {
             throw new IllegalArgumentException("Esta aula já é uma tarefa da turma.");
         }
-        return assignmentRepository.save(ClassroomAssignment.builder()
+        ClassroomAssignment assignment = assignmentRepository.save(ClassroomAssignment.builder()
                 .classroomId(classroomId).articleId(articleId).dueAt(dueAt).createdAt(now).build());
+        notificationService.newAssignment(classroomId, classroom.getName(), article.getTitle(),
+                article.getModule().getId(), articleId, dueAt);
+        return assignment;
     }
 
     @Transactional
