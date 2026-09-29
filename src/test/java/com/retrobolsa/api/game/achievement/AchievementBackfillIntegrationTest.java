@@ -149,8 +149,8 @@ class AchievementBackfillIntegrationTest extends AbstractIntegrationTest {
         Competition r3 = rodada(3, "open", null);
         carteira(ana, r3, null, null, LocalDateTime.of(2026, 3, 1, 9, 0), Map.of(acao, "100000.00"));
 
-        // Aulas: Ana fez todas; Beto fechou o módulo 1 (aulas 1-3); Caio fez uma; admin fez todas.
-        for (int aula = 1; aula <= 8; aula++) {
+        // Aulas: Ana fez todas as 20; Beto fechou o módulo 1 (aulas 1-3); Caio fez uma; admin fez todas.
+        for (int aula = 1; aula <= 20; aula++) {
             concluiuAula(ana, aula, LocalDateTime.of(2026, 1, aula, 20, 0));
             concluiuAula(admin, aula, LocalDateTime.of(2026, 1, aula, 21, 0));
         }
@@ -173,7 +173,7 @@ class AchievementBackfillIntegrationTest extends AbstractIntegrationTest {
         assertThat(daAna.get(CAMPEAO_RODADA)).isEqualTo(FIM_R1);
         assertThat(daAna.get(PRIMEIRA_AULA)).isEqualTo(LocalDateTime.of(2026, 1, 1, 20, 0));
         assertThat(daAna.get(MODULO_COMPLETO)).isEqualTo(LocalDateTime.of(2026, 1, 3, 20, 0));
-        assertThat(daAna.get(FORMADO)).isEqualTo(LocalDateTime.of(2026, 1, 8, 20, 0));
+        assertThat(daAna.get(FORMADO)).isEqualTo(LocalDateTime.of(2026, 1, 20, 20, 0));
 
         assertThat(conquistasDe(beto).keySet()).containsExactlyInAnyOrder(
                 PRIMEIRA_CARTEIRA, PODIO, NO_AZUL, DOIS_DIGITOS, PRIMEIRA_AULA, MODULO_COMPLETO);

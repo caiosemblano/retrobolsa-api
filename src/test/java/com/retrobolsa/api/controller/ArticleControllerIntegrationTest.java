@@ -68,11 +68,11 @@ class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("lista as 8 aulas na ordem, cada uma com vídeo, conteúdo e dados reais do módulo")
+    @DisplayName("lista as 20 aulas dos 7 módulos na ordem, cada uma com vídeo, conteúdo e dados reais do módulo")
     void listaAulasComVideoEConteudo() throws Exception {
         mockMvc.perform(get("/api/articles").header("Authorization", token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(8)))
+                .andExpect(jsonPath("$", hasSize(20)))
                 .andExpect(jsonPath("$[*].videoId", everyItem(matchesPattern("^[A-Za-z0-9_-]{11}$"))))
                 .andExpect(jsonPath("$[*].content", everyItem(not(blankOrNullString()))))
                 .andExpect(jsonPath("$[*].moduleDescription", everyItem(not(blankOrNullString()))))
@@ -90,7 +90,13 @@ class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$[7].title").value("IPCA: como a inflação corrói seus ganhos"))
                 .andExpect(jsonPath("$[7].videoId").value("LLANnZaSdQ0"))
                 .andExpect(jsonPath("$[7].moduleTitle").value("Macroeconomia"))
-                .andExpect(jsonPath("$[7].moduleIcon").value("globe"));
+                .andExpect(jsonPath("$[7].moduleIcon").value("globe"))
+                // Módulos novos (V17): o primeiro começa logo depois, o último fecha a lista.
+                .andExpect(jsonPath("$[8].moduleTitle").value("Renda fixa na prática"))
+                .andExpect(jsonPath("$[8].title").value("Tesouro Selic, Prefixado e IPCA+"))
+                .andExpect(jsonPath("$[19].moduleTitle").value("Comportamento do investidor"))
+                .andExpect(jsonPath("$[19].moduleIcon").value("brain"))
+                .andExpect(jsonPath("$[19].title").value("Ancoragem e excesso de confiança"));
     }
 
     @Test
@@ -136,8 +142,8 @@ class ArticleControllerIntegrationTest extends AbstractIntegrationTest {
         assertThat(conquistasDe(ana)).containsExactlyInAnyOrder(
                 AchievementCodes.PRIMEIRA_AULA, AchievementCodes.MODULO_COMPLETO);
 
-        // Conclui as 5 restantes: todos os módulos fechados.
-        for (int i = 4; i <= 8; i++) {
+        // Conclui as 17 restantes: todos os 7 módulos fechados.
+        for (int i = 4; i <= 20; i++) {
             concluir(String.format("bbbbbbbb-%04d-0000-0000-%012d", i, i));
         }
         assertThat(conquistasDe(ana)).containsExactlyInAnyOrder(

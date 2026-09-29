@@ -57,9 +57,12 @@ class QuizControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("o seed tem 3 perguntas por aula, 4 alternativas cada e exatamente uma certa")
+    @DisplayName("o seed tem 3 perguntas em cada uma das 20 aulas, 4 alternativas cada e exatamente uma certa")
     void seedConsistente() {
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM quiz_questions", Integer.class)).isEqualTo(24);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM quiz_questions", Integer.class)).isEqualTo(60);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM articles a WHERE NOT EXISTS (SELECT 1 FROM quiz_questions q WHERE q.article_id = a.id)",
+                Integer.class)).isZero();
         assertThat(jdbc.queryForList("""
                 SELECT article_id FROM quiz_questions GROUP BY article_id HAVING COUNT(*) <> 3
                 """)).isEmpty();
