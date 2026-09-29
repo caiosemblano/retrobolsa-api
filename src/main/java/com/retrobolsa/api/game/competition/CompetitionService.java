@@ -54,7 +54,8 @@ public class CompetitionService {
         return buildDto(target);
     }
 
-    private CompetitionResponseDto buildDto(Competition competition) {
+    /** Os dados de montagem da rodada: ativos anônimos com os indicadores do ano inicial e o cenário da época. */
+    public CompetitionResponseDto buildDto(Competition competition) {
 
         List<AssetDto> assetDtos = new ArrayList<>();
         for (Asset asset : competition.getAssets()) {

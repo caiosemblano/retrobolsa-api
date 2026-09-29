@@ -41,7 +41,7 @@ public class ProgressNewsService {
 
         Map<UUID, String> articleTitles = articleRepository.findAllById(refIds(events, XpSource.LESSON, XpSource.QUIZ_PERFECT))
                 .stream().collect(Collectors.toMap(Article::getId, Article::getTitle));
-        Map<UUID, Integer> rounds = competitionRepository.findAllById(refIds(events, XpSource.PORTFOLIO, XpSource.BEAT_CDI))
+        Map<UUID, Integer> rounds = competitionRepository.findAllById(refIds(events, XpSource.PORTFOLIO, XpSource.BEAT_CDI, XpSource.PRACTICE))
                 .stream().collect(Collectors.toMap(Competition::getId, Competition::getRoundNumber));
         Set<String> achievementCodes = events.stream()
                 .filter(e -> e.getSource() == XpSource.ACHIEVEMENT).map(XpEvent::getRefId).collect(Collectors.toSet());
@@ -93,6 +93,7 @@ public class ProgressNewsService {
             case PORTFOLIO -> "Carteira enviada na " + round.apply(e.getRefId());
             case BEAT_CDI -> "Acima do CDI na " + round.apply(e.getRefId());
             case ACHIEVEMENT -> "Conquista: " + achievements.getOrDefault(e.getRefId(), e.getRefId());
+            case PRACTICE -> "Treino na " + round.apply(e.getRefId());
         };
     }
 }

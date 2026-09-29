@@ -45,35 +45,72 @@ public class PortfolioService {
     private final DebriefService debriefService;
     private final ProgressService progressService;
 
+    /** Uma posição da carteira: o ativo e quanto foi posto nele. */
+    public record Holding(Asset asset, BigDecimal amount) {}
+
+    /** Posições já conferidas contra a rodada, com o aviso de dinheiro parado, se houver. */
+    public record ValidatedHoldings(List<Holding> holdings, List<String> warnings) {}
+
     @Transactional
     public SubmitPortfolioResponseDto submit(UUID userId, SubmitPortfolioRequestDto request) {
-        UUID competitionId = UUID.fromString(request.getCompetitionId());
+        Competition competition = openCompetition(request.getCompetitionId());
 
-        Competition competition = competitionRepository.findById(competitionId)
-                .orElseThrow(() -> new IllegalArgumentException("Rodada nao encontrada"));
-
-        if (!"open".equals(competition.getStatus())) {
-            throw new IllegalArgumentException("Esta rodada nao esta aberta para submissoes");
-        }
-
-        if (portfolioRepository.findByUserIdAndCompetitionId(userId, competitionId).isPresent()) {
+        if (portfolioRepository.findByUserIdAndCompetitionId(userId, competition.getId()).isPresent()) {
             throw new IllegalArgumentException("Voce ja submeteu uma carteira para esta rodada");
         }
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario nao encontrado"));
 
+        ValidatedHoldings validated = validate(competition, request.getAllocations());
+
+        Portfolio portfolio = Portfolio.builder()
+                .user(user)
+                .competition(competition)
+                .build();
+        portfolio = portfolioRepository.save(portfolio);
+
+        List<Allocation> allocations = allocationsFor(portfolio, competition, validated.holdings());
+        allocationRepository.saveAll(allocations);
+
+        achievementService.evaluateOnSubmit(user, competition.getBudget(), allocations,
+                portfolioRepository.countByUserId(userId));
+        progressService.reward(user, XpSource.PORTFOLIO, competition.getId().toString(), XpService.PORTFOLIO_XP);
+
+        return SubmitPortfolioResponseDto.builder()
+                .message("Carteira submetida com sucesso")
+                .warnings(validated.warnings().isEmpty() ? null : validated.warnings())
+                .build();
+    }
+
+    private Competition openCompetition(String competitionId) {
+        Competition competition = competitionRepository.findById(UUID.fromString(competitionId))
+                .orElseThrow(() -> new IllegalArgumentException("Rodada nao encontrada"));
+
+        if (!"open".equals(competition.getStatus())) {
+            throw new IllegalArgumentException("Esta rodada nao esta aberta para submissoes");
+        }
+        return competition;
+    }
+
+    /**
+     * Confere as alocações pedidas contra a rodada: ativos dela, sem repetidos,
+     * valores positivos, dados históricos disponíveis e total dentro do orçamento.
+     * Usada no envio, na edição e no treino.
+     */
+    @Transactional(readOnly = true)
+    public ValidatedHoldings validate(Competition competition,
+                                      List<SubmitPortfolioRequestDto.AllocationRequestDto> requests) {
         Set<UUID> competitionAssetIds = new HashSet<>();
         for (Asset a : competition.getAssets()) {
             competitionAssetIds.add(a.getId());
         }
 
         BigDecimal totalAllocated = BigDecimal.ZERO;
-        List<SimulationEngine.AllocationInput> simulationInputs = new ArrayList<>();
-        List<AllocationData> allocationDataList = new ArrayList<>();
+        List<Holding> holdings = new ArrayList<>();
         Set<UUID> seenAssetIds = new HashSet<>();
 
-        for (SubmitPortfolioRequestDto.AllocationRequestDto alloc : request.getAllocations()) {
+        for (SubmitPortfolioRequestDto.AllocationRequestDto alloc : requests) {
             UUID assetId = UUID.fromString(alloc.getAssetId());
 
             if (!seenAssetIds.add(assetId)) {
@@ -91,19 +128,12 @@ public class PortfolioService {
             Asset asset = assetRepository.findById(assetId)
                     .orElseThrow(() -> new IllegalArgumentException("Ativo nao encontrado: " + alloc.getAssetId()));
 
-            List<HistoricalQuote> quotes = quoteRepository
-                    .findAllByAssetIdAndDateBetweenOrderByDateAsc(assetId, LocalDate.of(competition.getStartYear() - 1, 12, 1), LocalDate.of(competition.getEndYear(), 12, 31));
-
-            List<AssetSnapshot> snapshots = snapshotRepository
-                    .findByAssetIdAndYearBetweenOrderByYearAsc(
-                            assetId, competition.getStartYear(), competition.getEndYear());
-            if (quotes.isEmpty() && snapshots.isEmpty()) {
+            if (quotesFor(assetId, competition).isEmpty() && snapshotsFor(assetId, competition).isEmpty()) {
                 throw new IllegalStateException("Dados historicos indisponiveis para o ativo: " + asset.getAnonymousName());
             }
 
             totalAllocated = totalAllocated.add(alloc.getAmount());
-            simulationInputs.add(new SimulationEngine.AllocationInput(assetId, alloc.getAmount(), quotes));
-            allocationDataList.add(new AllocationData(asset, alloc.getAmount()));
+            holdings.add(new Holding(asset, alloc.getAmount()));
         }
 
         if (totalAllocated.compareTo(competition.getBudget()) > 0) {
@@ -119,33 +149,21 @@ public class PortfolioService {
             warnings.add("Voce alocou apenas " + pct + "% do orcamento. R$ " + remaining +
                     " ficaram parados em caixa com rentabilidade 0%.");
         }
+        return new ValidatedHoldings(holdings, warnings);
+    }
 
-        Portfolio portfolio = Portfolio.builder()
-                .user(user)
-                .competition(competition)
-                .build();
-        portfolio = portfolioRepository.save(portfolio);
-
+    private List<Allocation> allocationsFor(Portfolio portfolio, Competition competition, List<Holding> holdings) {
         List<Allocation> allocations = new ArrayList<>();
-        for (AllocationData data : allocationDataList) {
-            BigDecimal weight = data.amount.divide(competition.getBudget(), 4, RoundingMode.HALF_UP);
+        for (Holding holding : holdings) {
+            BigDecimal weight = holding.amount().divide(competition.getBudget(), 4, RoundingMode.HALF_UP);
             allocations.add(Allocation.builder()
                     .portfolio(portfolio)
-                    .asset(data.asset)
-                    .amountInvested(data.amount)
+                    .asset(holding.asset())
+                    .amountInvested(holding.amount())
                     .percentWeight(weight)
                     .build());
         }
-        allocationRepository.saveAll(allocations);
-
-        achievementService.evaluateOnSubmit(user, competition.getBudget(), allocations,
-                portfolioRepository.countByUserId(userId));
-        progressService.reward(user, XpSource.PORTFOLIO, competition.getId().toString(), XpService.PORTFOLIO_XP);
-
-        return SubmitPortfolioResponseDto.builder()
-                .message("Carteira submetida com sucesso")
-                .warnings(warnings.isEmpty() ? null : warnings)
-                .build();
+        return allocations;
     }
 
     @Transactional(readOnly = true)
@@ -158,16 +176,23 @@ public class PortfolioService {
             throw new IllegalArgumentException("O resultado ainda nao foi simulado");
         }
 
+        return result(competition, holdingsOf(portfolio), portfolio.getRank() != null ? portfolio.getRank() : 0);
+    }
+
+    /**
+     * Simula as posições no período da rodada e monta o resultado completo:
+     * referências, contribuição de cada ativo, dicas e, depois da revelação,
+     * os nomes reais e a história do período.
+     */
+    @Transactional(readOnly = true)
+    public PortfolioResultDto result(Competition competition, List<Holding> holdings, int rank) {
         List<SimulationEngine.AllocationInput> inputs = new ArrayList<>();
-        for (Allocation alloc : portfolio.getAllocations()) {
-            List<HistoricalQuote> quotes = quoteRepository
-                    .findAllByAssetIdAndDateBetweenOrderByDateAsc(alloc.getAsset().getId(),
-                            LocalDate.of(competition.getStartYear() - 1, 12, 1), LocalDate.of(competition.getEndYear(), 12, 31));
-            inputs.add(new SimulationEngine.AllocationInput(alloc.getAsset().getId(), alloc.getAmountInvested(), quotes));
+        for (Holding holding : holdings) {
+            inputs.add(new SimulationEngine.AllocationInput(
+                    holding.asset().getId(), holding.amount(), quotesFor(holding.asset().getId(), competition)));
         }
 
-        SimulationEngine.SimulationResult result = calculateResult(
-                portfolio, competition, inputs);
+        SimulationEngine.SimulationResult result = calculateResult(holdings, competition, inputs);
 
         boolean revealed = "revealed".equals(competition.getStatus());
         List<PortfolioResultDto.RevealedAssetDto> revealedAssets = new ArrayList<>();
@@ -176,15 +201,11 @@ public class PortfolioService {
             Asset asset = assetRepository.findById(afv.assetId())
                     .orElseThrow(() -> new IllegalStateException("Ativo nao encontrado"));
 
-            Allocation matchingAlloc = null;
-            for (Allocation a : portfolio.getAllocations()) {
-                if (a.getAsset().getId().equals(afv.assetId())) {
-                    matchingAlloc = a;
-                    break;
-                }
-            }
-
-            BigDecimal invested = matchingAlloc != null ? matchingAlloc.getAmountInvested() : BigDecimal.ZERO;
+            BigDecimal invested = holdings.stream()
+                    .filter(h -> h.asset().getId().equals(afv.assetId()))
+                    .map(Holding::amount)
+                    .findFirst()
+                    .orElse(BigDecimal.ZERO);
             positions.add(new DebriefAdvisor.Position(asset.getAnonymousName(), asset.getType(), invested, afv.finalValue()));
             revealedAssets.add(PortfolioResultDto.RevealedAssetDto.builder()
                     .id(asset.getId().toString())
@@ -210,7 +231,7 @@ public class PortfolioService {
         DebriefService.Debrief debrief = debriefService.build(competition, positions, result.totalReturn(), revealed);
 
         return PortfolioResultDto.builder()
-                .rank(portfolio.getRank() != null ? portfolio.getRank() : 0)
+                .rank(rank)
                 .rentability(result.totalReturn())
                 .annualReturn(result.annualReturn())
                 .portfolioValue(result.finalValue())
@@ -262,7 +283,7 @@ public class PortfolioService {
             }
 
             SimulationEngine.SimulationResult result = calculateResult(
-                    portfolio, competition, inputs);
+                    holdingsOf(portfolio), competition, inputs);
             portfolio.setTotalReturn(result.totalReturn());
             portfolio.setFinalValue(result.finalValue());
         }
@@ -278,7 +299,7 @@ public class PortfolioService {
         for (int i = 0; i < portfolios.size(); i++) {
             Portfolio portfolio = portfolios.get(i);
             portfolio.setRank(i + 1);
-            
+
             User user = portfolio.getUser();
             BigDecimal totalReturn = portfolio.getTotalReturn();
             if (totalReturn != null) {
@@ -297,26 +318,37 @@ public class PortfolioService {
         portfolioRepository.saveAll(portfolios);
     }
 
+    private List<Holding> holdingsOf(Portfolio portfolio) {
+        return portfolio.getAllocations().stream()
+                .map(allocation -> new Holding(allocation.getAsset(), allocation.getAmountInvested()))
+                .toList();
+    }
+
+    private List<HistoricalQuote> quotesFor(UUID assetId, Competition competition) {
+        return quoteRepository.findAllByAssetIdAndDateBetweenOrderByDateAsc(assetId,
+                LocalDate.of(competition.getStartYear() - 1, 12, 1), LocalDate.of(competition.getEndYear(), 12, 31));
+    }
+
+    private List<AssetSnapshot> snapshotsFor(UUID assetId, Competition competition) {
+        return snapshotRepository.findByAssetIdAndYearBetweenOrderByYearAsc(
+                assetId, competition.getStartYear(), competition.getEndYear());
+    }
+
     private SimulationEngine.SimulationResult calculateResult(
-            Portfolio portfolio, Competition competition, List<SimulationEngine.AllocationInput> inputs) {
+            List<Holding> holdings, Competition competition, List<SimulationEngine.AllocationInput> inputs) {
         if (inputs.stream().allMatch(input -> !input.quotes().isEmpty())) {
             return simulationEngine.calculate(
                     competition.getBudget(), inputs, competition.getStartYear(), competition.getEndYear());
         }
 
-        List<SimulationEngine.SnapshotAllocationInput> snapshotInputs = portfolio.getAllocations().stream()
-                .map(allocation -> new SimulationEngine.SnapshotAllocationInput(
-                        allocation.getAsset().getId(),
-                        allocation.getAmountInvested(),
-                        snapshotRepository.findByAssetIdAndYearBetweenOrderByYearAsc(
-                                allocation.getAsset().getId(),
-                                competition.getStartYear(),
-                                competition.getEndYear())))
+        List<SimulationEngine.SnapshotAllocationInput> snapshotInputs = holdings.stream()
+                .map(holding -> new SimulationEngine.SnapshotAllocationInput(
+                        holding.asset().getId(),
+                        holding.amount(),
+                        snapshotsFor(holding.asset().getId(), competition)))
                 .toList();
         return simulationEngine.calculateSnapshots(
                 competition.getBudget(), snapshotInputs,
                 competition.getStartYear(), competition.getEndYear());
     }
-
-    private record AllocationData(Asset asset, BigDecimal amount) {}
 }

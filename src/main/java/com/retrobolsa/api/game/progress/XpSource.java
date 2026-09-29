@@ -11,5 +11,7 @@ public enum XpSource {
     /** Carteira que terminou a rodada acima do CDI (ref: id da rodada). */
     BEAT_CDI,
     /** Conquista desbloqueada (ref: código da conquista). */
-    ACHIEVEMENT
+    ACHIEVEMENT,
+    /** Treino numa rodada já revelada (ref: id da rodada). */
+    PRACTICE
 }

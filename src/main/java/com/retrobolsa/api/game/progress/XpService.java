@@ -27,6 +27,7 @@ public class XpService {
     public static final int QUIZ_PERFECT_XP = 15;
     public static final int PORTFOLIO_XP = 30;
     public static final int BEAT_CDI_XP = 20;
+    public static final int PRACTICE_XP = 15;
     /** XP de cada conquista, pela raridade (a mesma que define a cor do emblema). */
     public static final Map<String, Integer> ACHIEVEMENT_XP = Map.of(
             "comum", 10, "raro", 25, "epico", 50, "lendario", 100);
