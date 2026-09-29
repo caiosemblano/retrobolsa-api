@@ -42,6 +42,15 @@ class DebriefMigrationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void rodadaDe2011NaoContaOFuturoAoJogador() {
+        String descricao = jdbc.queryForObject(
+                "SELECT scenario_description FROM competitions WHERE start_year = 2011", String.class);
+
+        // Nada depois de janeiro de 2011: nem a Selic mínima de 2012, nem a alta de 2013.
+        assertThat(descricao).startsWith("Começo de 2011").doesNotContain("7,25%").doesNotContain("2013");
+    }
+
+    @Test
     void rodadaDe2004NaoDizMaisQueOPaisJaTinhaGrauDeInvestimento() {
         String descricao = jdbc.queryForObject(
                 "SELECT scenario_description FROM competitions WHERE start_year = 2004", String.class);
