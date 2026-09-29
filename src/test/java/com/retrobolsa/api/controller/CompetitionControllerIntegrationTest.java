@@ -93,8 +93,40 @@ class CompetitionControllerIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(assetAcao.get("indicators").isNull()).isFalse();
         assertThat(assetAcao.get("indicators").get("pl").decimalValue()).isEqualByComparingTo("12.50");
+        // ROE e Dividend Yield são ensinados nas aulas e agora aparecem no jogo.
+        assertThat(assetAcao.get("indicators").get("roe").decimalValue()).isEqualByComparingTo("18.30");
+        assertThat(assetAcao.get("indicators").get("dividendYield").decimalValue()).isEqualByComparingTo("4.20");
 
         assertThat(assetTitulo.get("indicators").isNull()).isTrue();
+    }
+
+    @Test
+    void deveTrazerOCenarioEconomicoDoAnoAnteriorAoInicio() throws Exception {
+        Asset acao = criarAsset("Ação Anônima 1", "stock", "Financeiro");
+        criarCompeticaoAberta(1, List.of(acao), new BigDecimal("100000.00"));
+
+        // Rodada de 2020 a 2023: quem investia no começo de 2020 conhecia os números de 2019.
+        mockMvc.perform(get("/api/competitions/active"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.economicIndicators[*].code", contains("SELIC", "IPCA", "DOLAR", "PIB")))
+                .andExpect(jsonPath("$.economicIndicators[*].year", everyItem(is(START_YEAR - 1))))
+                .andExpect(jsonPath("$.economicIndicators[0].value").value(4.5))
+                .andExpect(jsonPath("$.economicIndicators[0].unit").value("% a.a."))
+                .andExpect(jsonPath("$.economicIndicators[1].label").value("Inflação (IPCA)"))
+                .andExpect(jsonPath("$.economicIndicators[1].value").value(4.31))
+                .andExpect(jsonPath("$.economicIndicators[2].unit").value("R$"));
+    }
+
+    @Test
+    void semDadosMacroParaOAnoOCenarioVemVazio() throws Exception {
+        Asset acao = criarAsset("Ação Anônima 1", "stock", "Financeiro");
+        competitionRepository.save(Competition.builder()
+                .roundNumber(1).status("open").budget(new BigDecimal("100000.00"))
+                .startYear(1980).endYear(1985).assets(List.of(acao)).build());
+
+        mockMvc.perform(get("/api/competitions/active"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.economicIndicators", hasSize(0)));
     }
 
     @Test
@@ -166,6 +198,8 @@ class CompetitionControllerIntegrationTest extends AbstractIntegrationTest {
                 .asset(asset)
                 .year(ano)
                 .pl(pl)
+                .roe(pl == null ? null : new BigDecimal("18.30"))
+                .dividendYield(pl == null ? null : new BigDecimal("4.20"))
                 .rate(annualReturn)
                 .annualReturn(annualReturn)
                 .build());

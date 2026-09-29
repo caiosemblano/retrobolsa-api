@@ -21,5 +21,7 @@ public class CompetitionResponseDto {
     private int startYear;
     private int endYear;
     private LocalDateTime endsAt;
+    /** Selic, inflação, dólar e PIB do ano anterior ao início: o que o investidor sabia na época. */
+    private List<EconomicIndicatorDto> economicIndicators;
     private List<AssetDto> assets;
 }

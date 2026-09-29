@@ -6,10 +6,13 @@ import com.retrobolsa.api.game.asset.AssetSnapshot;
 import com.retrobolsa.api.game.asset.AssetSnapshotRepository;
 import com.retrobolsa.api.game.dto.AssetDto;
 import com.retrobolsa.api.game.dto.CompetitionResponseDto;
+import com.retrobolsa.api.game.dto.EconomicIndicatorDto;
+import com.retrobolsa.api.game.macro.MacroIndicatorRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -23,6 +26,7 @@ public class CompetitionService {
     private final CompetitionRepository competitionRepository;
     private final AssetSnapshotRepository snapshotRepository;
     private final AchievementService achievementService;
+    private final MacroIndicatorRepository macroIndicatorRepository;
 
     @Transactional(readOnly = true)
     public CompetitionResponseDto getActiveCompetition() {
@@ -60,6 +64,8 @@ public class CompetitionService {
             if (startSnapshot != null && "stock".equals(asset.getType())) {
                 indicators = AssetDto.IndicatorsDto.builder()
                         .pl(startSnapshot.getPl())
+                        .roe(startSnapshot.getRoe())
+                        .dividendYield(startSnapshot.getDividendYield())
                         .lvp(startSnapshot.getLvp())
                         .lucroPositivo(startSnapshot.getLucroPositivo())
                         .cagrLucro(startSnapshot.getCagrLucro())
@@ -90,8 +96,31 @@ public class CompetitionService {
                 .startYear(competition.getStartYear())
                 .endYear(competition.getEndYear())
                 .endsAt(competition.getEndsAt())
+                .economicIndicators(economicIndicators(competition.getStartYear() - 1))
                 .assets(assetDtos)
                 .build();
+    }
+
+    /**
+     * O cenário que o investidor conhecia ao montar a carteira: os números do ano
+     * anterior ao início da rodada. Lista vazia se o ano não está na base.
+     */
+    private List<EconomicIndicatorDto> economicIndicators(int year) {
+        return macroIndicatorRepository.findById(year)
+                .map(macro -> List.of(
+                        indicator("SELIC", "Taxa Selic",
+                                // A meta só existe desde 1999; antes disso, a Selic efetiva do ano.
+                                macro.getSelicMeta() != null ? macro.getSelicMeta() : macro.getSelic(),
+                                "% a.a.", year),
+                        indicator("IPCA", "Inflação (IPCA)", macro.getIpca(), "% no ano", year),
+                        indicator("DOLAR", "Dólar", macro.getDolar(), "R$", year),
+                        indicator("PIB", "Crescimento do PIB", macro.getPib(), "% no ano", year)))
+                .orElse(List.of());
+    }
+
+    private EconomicIndicatorDto indicator(String code, String label, BigDecimal value, String unit, int year) {
+        return EconomicIndicatorDto.builder()
+                .code(code).label(label).value(value).unit(unit).year(year).build();
     }
     /**
      * daysLeft é calculado a partir de endsAt a cada leitura (em vez de depender

@@ -24,6 +24,10 @@ public class AssetDto {
     @Builder
     public static class IndicatorsDto {
         private BigDecimal pl;
+        /** Retorno sobre o patrimônio, em %. */
+        private BigDecimal roe;
+        /** Dividendos pagos no ano sobre o preço da ação, em %. */
+        private BigDecimal dividendYield;
         private BigDecimal lvp;
         private Boolean lucroPositivo;
         private BigDecimal cagrLucro;
