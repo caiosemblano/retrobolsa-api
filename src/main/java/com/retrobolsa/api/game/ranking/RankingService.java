@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -64,25 +65,28 @@ public class RankingService {
      */
     @Transactional(readOnly = true)
     public List<RankingResponseDto> getQuinzenalRanking() {
+        return getQuinzenalRanking(null);
+    }
+
+    /**
+     * @param onlyUsers se não for nulo, só estes jogadores (os alunos de uma turma),
+     *                  com a posição recontada entre eles
+     */
+    @Transactional(readOnly = true)
+    public List<RankingResponseDto> getQuinzenalRanking(Set<UUID> onlyUsers) {
         // 1. Tenta encontrar rodada aberta
         Optional<Competition> activeOpt = competitionRepository.findByStatus("open");
         if (activeOpt.isPresent()) {
             Competition active = activeOpt.get();
-            List<Portfolio> portfolios =
-                    portfolioRepository.findByCompetitionIdOrderByRankThenTieBreak(active.getId());
-            return portfolios.stream()
-                    .map(p -> toRankingResponse(p, active.getStatus()))
-                    .toList();
+            return toRanking(portfolioRepository.findByCompetitionIdOrderByRankThenTieBreak(active.getId()),
+                    active.getStatus(), onlyUsers);
         }
 
         // 2. Fallback: última rodada finalizada
         return competitionRepository
                 .findTopByStatusInOrderByRoundNumberDesc(FINISHED_STATUSES)
-                .map(comp -> portfolioRepository
-                        .findByCompetitionIdOrderByRankThenTieBreak(comp.getId())
-                        .stream()
-                        .map(p -> toRankingResponse(p, comp.getStatus()))
-                        .toList())
+                .map(comp -> toRanking(portfolioRepository.findByCompetitionIdOrderByRankThenTieBreak(comp.getId()),
+                        comp.getStatus(), onlyUsers))
                 .orElse(List.of());
     }
 
@@ -101,6 +105,11 @@ public class RankingService {
      */
     @Transactional(readOnly = true)
     public List<RankingResponseDto> getRanking(UUID competitionId, Integer roundNumber) {
+        return getRanking(competitionId, roundNumber, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RankingResponseDto> getRanking(UUID competitionId, Integer roundNumber, Set<UUID> onlyUsers) {
         if (competitionId == null && roundNumber == null) {
             throw new IllegalArgumentException(
                     "Informe competitionId ou roundNumber para consultar o ranking da rodada");
@@ -124,9 +133,7 @@ public class RankingService {
                     : portfolios.get(0).getCompetition().getStatus();
         }
 
-        return portfolios.stream()
-                .map(p -> toRankingResponse(p, roundStatus))
-                .toList();
+        return toRanking(portfolios, roundStatus, onlyUsers);
     }
 
     // -------------------------------------------------------------------------
@@ -209,9 +216,17 @@ public class RankingService {
      */
     @Transactional(readOnly = true)
     public List<GlobalRankingResponseDto> getSeasonRanking(Integer limit, Integer page) {
+        return getSeasonRanking(limit, page, null);
+    }
+
+    /** @param onlyUsers se não for nulo, a temporada só entre estes jogadores (os alunos de uma turma) */
+    @Transactional(readOnly = true)
+    public List<GlobalRankingResponseDto> getSeasonRanking(Integer limit, Integer page, Set<UUID> onlyUsers) {
         SeasonInfoDto season = getCurrentSeasonInfo();
         List<Portfolio> portfolios = portfolioRepository.findForSeasonRanking(
-                season.getRoundStart(), season.getRoundEnd(), FINISHED_STATUSES, ADMIN_ROLE);
+                season.getRoundStart(), season.getRoundEnd(), FINISHED_STATUSES, ADMIN_ROLE).stream()
+                .filter(p -> onlyUsers == null || onlyUsers.contains(p.getUser().getId()))
+                .toList();
 
         Map<UUID, SeasonScore> scoresByUser = new LinkedHashMap<>();
         for (Portfolio portfolio : portfolios) {
@@ -337,6 +352,24 @@ public class RankingService {
     // -------------------------------------------------------------------------
     // Helpers Privados
     // -------------------------------------------------------------------------
+
+    /**
+     * Ranking de uma rodada, inteiro ou só de alguns jogadores. Filtrado, a posição
+     * é recontada entre eles (o 5º da rodada pode ser o 1º da turma); na rodada
+     * ainda aberta ninguém tem posição, e continua assim.
+     */
+    private List<RankingResponseDto> toRanking(List<Portfolio> portfolios, String roundStatus, Set<UUID> onlyUsers) {
+        List<RankingResponseDto> ranking = portfolios.stream()
+                .filter(p -> onlyUsers == null || onlyUsers.contains(p.getUser().getId()))
+                .map(p -> toRankingResponse(p, roundStatus))
+                .toList();
+        if (onlyUsers != null) {
+            for (int i = 0; i < ranking.size(); i++) {
+                if (ranking.get(i).getRank() > 0) ranking.get(i).setRank(i + 1);
+            }
+        }
+        return ranking;
+    }
 
     private RankingResponseDto toRankingResponse(Portfolio portfolio, String roundStatus) {
         return RankingResponseDto.builder()
