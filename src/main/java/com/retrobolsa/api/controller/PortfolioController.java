@@ -31,6 +31,16 @@ public class PortfolioController {
         return ResponseEntity.status(201).body(response);
     }
 
+    /** Troca as alocações da carteira já enviada, enquanto a rodada está aberta. */
+    @PutMapping
+    public ResponseEntity<SubmitPortfolioResponseDto> update(
+            @Valid @RequestBody SubmitPortfolioRequestDto request,
+            Authentication authentication) {
+
+        User user = resolveUser(authentication);
+        return ResponseEntity.ok(portfolioService.update(user.getId(), request));
+    }
+
     @GetMapping("/my-last-result")
     public ResponseEntity<PortfolioResultDto> getLastResult(Authentication authentication) {
         User user = resolveUser(authentication);

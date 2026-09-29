@@ -11,6 +11,7 @@ import com.retrobolsa.api.game.competition.Competition;
 import com.retrobolsa.api.game.competition.CompetitionRepository;
 import com.retrobolsa.api.game.dto.AchievementResponseDto;
 import com.retrobolsa.api.game.dto.SubmitPortfolioRequestDto;
+import com.retrobolsa.api.game.portfolio.Allocation;
 import com.retrobolsa.api.game.portfolio.AllocationRepository;
 import com.retrobolsa.api.game.portfolio.PortfolioRepository;
 import com.retrobolsa.api.game.portfolio.PortfolioService;
@@ -21,8 +22,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -31,6 +34,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -79,6 +83,9 @@ class PortfolioControllerIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private PortfolioService portfolioService;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @BeforeEach
     void limparBanco() {
@@ -290,6 +297,108 @@ class PortfolioControllerIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ---------------------------------------------------------------
+    // PUT /api/portfolios
+    // ---------------------------------------------------------------
+
+    @Test
+    void edicaoTrocaAsAlocacoesDaCarteira() throws Exception {
+        Asset ativo1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        Asset ativo2 = criarAssetComHistorico("Ação 2", new BigDecimal("0.05"));
+        Competition competicao = criarCompeticaoAberta(1, List.of(ativo1, ativo2));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+        submeter(usuario, competicao, alocacao(ativo1.getId(), BUDGET));
+
+        editar(usuario, competicao,
+                alocacao(ativo2.getId(), new BigDecimal("30000.00")),
+                alocacao(ativo1.getId(), new BigDecimal("20000.00")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Carteira atualizada com sucesso"))
+                .andExpect(jsonPath("$.warnings[0]", containsString("ficaram parados em caixa")));
+
+        assertThat(portfolioRepository.count()).isEqualTo(1);
+        assertThat(allocationRepository.findAll())
+                .extracting(a -> a.getAsset().getId(), Allocation::getAmountInvested, Allocation::getPercentWeight)
+                .containsExactlyInAnyOrder(
+                        tuple(ativo2.getId(), new BigDecimal("30000.00"), new BigDecimal("0.3000")),
+                        tuple(ativo1.getId(), new BigDecimal("20000.00"), new BigDecimal("0.2000")));
+    }
+
+    @Test
+    void edicaoRecusadaComRodadaFechada() throws Exception {
+        Asset ativo1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        Competition competicao = criarCompeticaoAberta(1, List.of(ativo1));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+        submeter(usuario, competicao, alocacao(ativo1.getId(), BUDGET));
+        competicao.setStatus("closed");
+        competitionRepository.save(competicao);
+
+        editar(usuario, competicao, alocacao(ativo1.getId(), new BigDecimal("1000.00")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro", containsString("nao esta aberta")));
+
+        assertThat(allocationRepository.findAll())
+                .extracting(Allocation::getAmountInvested)
+                .containsExactly(BUDGET);
+    }
+
+    @Test
+    void edicaoRecusadaSemCarteiraEnviada() throws Exception {
+        Asset ativo1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        Competition competicao = criarCompeticaoAberta(1, List.of(ativo1));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+
+        editar(usuario, competicao, alocacao(ativo1.getId(), BUDGET))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro", containsString("ainda não enviou")));
+
+        assertThat(portfolioRepository.count()).isZero();
+    }
+
+    @Test
+    void edicaoInvalidaNaoMexeNaCarteira() throws Exception {
+        Asset ativo1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        Competition competicao = criarCompeticaoAberta(1, List.of(ativo1));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+        submeter(usuario, competicao, alocacao(ativo1.getId(), new BigDecimal("40000.00")));
+
+        editar(usuario, competicao, alocacao(ativo1.getId(), new BigDecimal("150000.00")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro", containsString("excede o orcamento")));
+
+        assertThat(allocationRepository.findAll())
+                .extracting(Allocation::getAmountInvested)
+                .containsExactly(new BigDecimal("40000.00"));
+    }
+
+    @Test
+    void edicaoReavaliaConquistasDeMontagemSemDarXpDeEnvioDeNovo() throws Exception {
+        Asset acao1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        Asset acao2 = criarAssetComHistorico("Ação 2", new BigDecimal("0.10"));
+        Asset acao3 = criarAssetComHistorico("Ação 3", new BigDecimal("0.10"));
+        Asset titulo1 = criarAssetComHistorico("Título 1", new BigDecimal("0.08"), "bond");
+        Asset titulo2 = criarAssetComHistorico("Título 2", new BigDecimal("0.08"), "bond");
+        Competition competicao = criarCompeticaoAberta(1, List.of(acao1, acao2, acao3, titulo1, titulo2));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+        submeter(usuario, competicao, alocacao(acao1.getId(), new BigDecimal("40000.00")));
+        assertThat(conquistasDe(usuario)).containsExactly(AchievementCodes.PRIMEIRA_CARTEIRA);
+
+        editar(usuario, competicao,
+                alocacao(acao1.getId(), new BigDecimal("20000.00")),
+                alocacao(acao2.getId(), new BigDecimal("20000.00")),
+                alocacao(acao3.getId(), new BigDecimal("20000.00")),
+                alocacao(titulo1.getId(), new BigDecimal("20000.00")),
+                alocacao(titulo2.getId(), new BigDecimal("20000.00")))
+                .andExpect(status().isOk());
+
+        assertThat(conquistasDe(usuario)).containsExactlyInAnyOrder(
+                AchievementCodes.PRIMEIRA_CARTEIRA, AchievementCodes.TUDO_INVESTIDO,
+                AchievementCodes.DIVERSIFICADOR, AchievementCodes.EQUILIBRISTA);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM xp_events WHERE user_id = ? AND source = 'PORTFOLIO'", Integer.class, usuario.getId()))
+                .isEqualTo(1);
     }
 
     // ---------------------------------------------------------------
@@ -551,6 +660,14 @@ class PortfolioControllerIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestComAlocacoes(competicao.getId(), alocacoes))))
                 .andExpect(status().isCreated());
+    }
+
+    private ResultActions editar(User usuario, Competition competicao,
+                                 SubmitPortfolioRequestDto.AllocationRequestDto... alocacoes) throws Exception {
+        return mockMvc.perform(put("/api/portfolios")
+                .header("Authorization", "Bearer " + gerarToken(usuario))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(requestComAlocacoes(competicao.getId(), alocacoes))));
     }
 
     private Set<String> conquistasDe(User usuario) {

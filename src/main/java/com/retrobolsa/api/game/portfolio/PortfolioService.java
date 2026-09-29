@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -79,6 +80,38 @@ public class PortfolioService {
 
         return SubmitPortfolioResponseDto.builder()
                 .message("Carteira submetida com sucesso")
+                .warnings(validated.warnings().isEmpty() ? null : validated.warnings())
+                .build();
+    }
+
+    /**
+     * Troca as alocações de uma carteira já enviada, enquanto a rodada está aberta.
+     * As conquistas de montagem são reavaliadas (a nova carteira pode merecer outras);
+     * o XP de envio não se repete, porque ele é dado uma vez por rodada.
+     */
+    @Transactional
+    public SubmitPortfolioResponseDto update(UUID userId, SubmitPortfolioRequestDto request) {
+        Competition competition = openCompetition(request.getCompetitionId());
+
+        Portfolio portfolio = portfolioRepository.findByUserIdAndCompetitionId(userId, competition.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Você ainda não enviou uma carteira para esta rodada"));
+
+        ValidatedHoldings validated = validate(competition, request.getAllocations());
+
+        // Apaga as antigas antes de gravar as novas, na mesma transação.
+        portfolio.getAllocations().clear();
+        portfolioRepository.flush();
+        List<Allocation> allocations = allocationsFor(portfolio, competition, validated.holdings());
+        portfolio.getAllocations().addAll(allocations);
+        // No desempate do ranking vale quem enviou primeiro: editar conta como enviar de novo.
+        portfolio.setSubmittedAt(LocalDateTime.now());
+        portfolioRepository.save(portfolio);
+
+        achievementService.evaluateOnSubmit(portfolio.getUser(), competition.getBudget(), allocations,
+                portfolioRepository.countByUserId(userId));
+
+        return SubmitPortfolioResponseDto.builder()
+                .message("Carteira atualizada com sucesso")
                 .warnings(validated.warnings().isEmpty() ? null : validated.warnings())
                 .build();
     }
