@@ -2,6 +2,10 @@ package com.retrobolsa.api.controller;
 
 import com.retrobolsa.api.game.achievement.AchievementCodes;
 import com.retrobolsa.api.game.achievement.AchievementService;
+import com.retrobolsa.api.game.asset.Asset;
+import com.retrobolsa.api.game.asset.AssetRepository;
+import com.retrobolsa.api.game.asset.AssetSnapshot;
+import com.retrobolsa.api.game.asset.AssetSnapshotRepository;
 import com.retrobolsa.api.game.competition.Competition;
 import com.retrobolsa.api.game.competition.CompetitionRepository;
 import com.retrobolsa.api.game.dto.AchievementResponseDto;
@@ -11,10 +15,12 @@ import com.retrobolsa.api.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,6 +52,12 @@ class CompetitionAdminControllerIntegrationTest extends AbstractIntegrationTest 
 
     @Autowired
     private AchievementService achievementService;
+
+    @Autowired
+    private AssetRepository assetRepository;
+
+    @Autowired
+    private AssetSnapshotRepository snapshotRepository;
 
     @BeforeEach
     void limparBanco() {
@@ -111,6 +123,59 @@ class CompetitionAdminControllerIntegrationTest extends AbstractIntegrationTest 
                 .filteredOn(AchievementResponseDto::isUnlocked)
                 .extracting(AchievementResponseDto::getCode)
                 .containsExactly(AchievementCodes.PRIMEIRA_AULA);
+    }
+
+    @Test
+    void criaRodadaComoRascunhoPeloFormularioDoAdmin() throws Exception {
+        User admin = criarAdmin("admin@retrobolsa.com");
+        Asset primeiro = criarAtivoComRetorno("Empresa Formulário A", 2020, 2021);
+        Asset segundo = criarAtivoComRetorno("Empresa Formulário B", 2020, 2021);
+        // O input datetime-local do app manda a data sem os segundos.
+        String corpo = """
+                {"roundNumber": 42, "budget": 50000, "scenarioTitle": "Cenário de teste",
+                 "scenarioDescription": "O que o jogador lê antes de montar a carteira.",
+                 "startYear": 2020, "endYear": 2022, "endsAt": "2026-10-05T23:59",
+                 "assetIds": ["%s", "%s"]}
+                """.formatted(primeiro.getId(), segundo.getId());
+
+        mockMvc.perform(post("/api/admin/competitions")
+                        .header("Authorization", "Bearer " + jwtUtil.generateToken(admin.getEmail()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpo))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.roundNumber").value(42))
+                .andExpect(jsonPath("$.status").value("draft"));
+
+        Competition criada = competitionRepository.findAll().stream()
+                .filter(c -> c.getRoundNumber() == 42).findFirst().orElseThrow();
+        assertThat(criada.getEndsAt()).isEqualTo(LocalDateTime.of(2026, 10, 5, 23, 59));
+        assertThat(criada.getBudget()).isEqualByComparingTo("50000");
+    }
+
+    @Test
+    void criacaoRecusadaDizQualAtivoNaoTemDadosNoPeriodo() throws Exception {
+        User admin = criarAdmin("admin@retrobolsa.com");
+        Asset semDados = criarAtivoComRetorno("Empresa Sem Dados", 2020);
+        String corpo = """
+                {"roundNumber": 43, "budget": 100000, "scenarioTitle": "Cenário de teste",
+                 "startYear": 2020, "endYear": 2022, "endsAt": "2026-10-05T23:59", "assetIds": ["%s"]}
+                """.formatted(semDados.getId());
+
+        mockMvc.perform(post("/api/admin/competitions")
+                        .header("Authorization", "Bearer " + jwtUtil.generateToken(admin.getEmail()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpo))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro", containsString("faltam 2021")));
+    }
+
+    private Asset criarAtivoComRetorno(String nomeAnonimo, int... anos) {
+        Asset asset = assetRepository.save(Asset.builder()
+                .anonymousName(nomeAnonimo).realName("Real " + nomeAnonimo).type("stock").build());
+        for (int ano : anos) {
+            snapshotRepository.save(AssetSnapshot.builder().asset(asset).year(ano).annualReturn(new BigDecimal("0.05")).build());
+        }
+        return asset;
     }
 
     private User criarAdmin(String email) {
