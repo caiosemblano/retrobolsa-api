@@ -1,6 +1,7 @@
 package com.retrobolsa.api.game.portfolio;
 
 import com.retrobolsa.api.game.achievement.AchievementService;
+import com.retrobolsa.api.game.debrief.DebriefService;
 import com.retrobolsa.api.game.asset.Asset;
 import com.retrobolsa.api.game.asset.AssetRepository;
 import com.retrobolsa.api.game.asset.AssetSnapshotRepository;
@@ -46,6 +47,7 @@ class PortfolioServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private SimulationEngine simulationEngine;
     @Mock private AchievementService achievementService;
+    @Mock private DebriefService debriefService;
 
     @InjectMocks private PortfolioService portfolioService;
 

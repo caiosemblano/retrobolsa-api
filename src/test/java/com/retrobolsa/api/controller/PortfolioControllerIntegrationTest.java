@@ -330,6 +330,74 @@ class PortfolioControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void resultadoRevelado_ensina_referencias_contribuicao_historiaEDicas() throws Exception {
+        // 50 mil num ativo que rende 10% em 2020 e em 2021, e 50 mil parados:
+        // o ativo vira 60.500 (+21%, somando 10,5 pontos) e a carteira rende 10,50%.
+        Asset ativo1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        ativo1.setRevealNote("Frase sobre a empresa no período.");
+        assetRepository.save(ativo1);
+        Competition competicao = criarCompeticaoAberta(1, List.of(ativo1));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+        String token = gerarToken(usuario);
+        submeter(usuario, competicao, alocacao(ativo1.getId(), new BigDecimal("50000.00")));
+        encerrarComResultado(competicao, usuario, "revealed", "O que aconteceu de verdade em 2020 e 2021.");
+
+        mockMvc.perform(get("/api/portfolios/my-last-result").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rentability").value(10.5))
+                // CDI e IPCA oficiais de 2020 e 2021 (V14): 2,75% e 4,44%; 4,52% e 10,06%.
+                .andExpect(jsonPath("$.benchmarks[*].code", contains("CDI", "POUPANCA", "IBOVESPA", "IPCA")))
+                .andExpect(jsonPath("$.benchmarks[0].totalReturn").value(7.31))
+                .andExpect(jsonPath("$.benchmarks[3].totalReturn").value(15.03))
+                .andExpect(jsonPath("$.benchmarks[0].chartData[*].year", contains(START_YEAR, START_YEAR + 1, END_YEAR)))
+                .andExpect(jsonPath("$.revealedAssets[0].returnPct").value(21.0))
+                .andExpect(jsonPath("$.revealedAssets[0].contribution").value(10.5))
+                .andExpect(jsonPath("$.revealedAssets[0].revealNote").value("Frase sobre a empresa no período."))
+                .andExpect(jsonPath("$.roundStats.participants").value(1))
+                .andExpect(jsonPath("$.roundStats.medianReturn").value(10.5))
+                .andExpect(jsonPath("$.roundStats.bestAsset.realName").value("Empresa Real 1"))
+                .andExpect(jsonPath("$.roundStats.bestAsset.returnPct").value(21.0))
+                .andExpect(jsonPath("$.debrief").value("O que aconteceu de verdade em 2020 e 2021."))
+                .andExpect(jsonPath("$.tips[*].code",
+                        contains("PERDEU_PARA_INFLACAO", "VENCEU_CDI", "CONCENTRADA", "DINHEIRO_PARADO")))
+                // Com o CDI que aparece na tela (7,31%), para o aluno conseguir refazer a conta: 50.000 x 1,0731.
+                .andExpect(jsonPath("$.tips[3].message")
+                        .value("R$ 50.000,00 ficaram parados, rendendo 0%. No CDI, teriam virado R$ 53.655,00."));
+    }
+
+    @Test
+    void resultadoSimuladoMasNaoRevelado_naoEntregaNomesNemAHistoria() throws Exception {
+        Asset ativo1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        ativo1.setRevealNote("Frase que citaria a empresa.");
+        assetRepository.save(ativo1);
+        Competition competicao = criarCompeticaoAberta(1, List.of(ativo1));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+        submeter(usuario, competicao, alocacao(ativo1.getId(), new BigDecimal("100000.00")));
+        encerrarComResultado(competicao, usuario, "simulated", "História que citaria a empresa.");
+
+        mockMvc.perform(get("/api/portfolios/my-last-result").header("Authorization", "Bearer " + gerarToken(usuario)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.debrief").doesNotExist())
+                .andExpect(jsonPath("$.revealedAssets[0].revealNote").doesNotExist())
+                .andExpect(jsonPath("$.revealedAssets[0].returnPct").value(21.0))
+                .andExpect(jsonPath("$.roundStats.bestAsset.anonymousName").value("Ação 1"))
+                .andExpect(jsonPath("$.roundStats.bestAsset.realName").doesNotExist())
+                .andExpect(jsonPath("$.benchmarks", hasSize(4)))
+                .andExpect(jsonPath("$.tips", not(empty())));
+    }
+
+    /** Fecha a rodada como o admin faria, gravando a rentabilidade e a posição da carteira. */
+    private void encerrarComResultado(Competition competicao, User usuario, String status, String debrief) {
+        competicao.setStatus(status);
+        competicao.setDebrief(debrief);
+        competitionRepository.save(competicao);
+        var portfolio = portfolioRepository.findByUserIdAndCompetitionId(usuario.getId(), competicao.getId()).orElseThrow();
+        portfolio.setRank(1);
+        portfolio.setTotalReturn(new BigDecimal("10.50"));
+        portfolioRepository.save(portfolio);
+    }
+
+    @Test
     void deveRetornar400QuandoUsuarioNuncaSubmeteuCarteira() throws Exception {
         User usuario = criarUsuario("rafael@retrobolsa.com");
 

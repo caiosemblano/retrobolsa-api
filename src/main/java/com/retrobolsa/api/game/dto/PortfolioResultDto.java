@@ -17,6 +17,12 @@ public class PortfolioResultDto {
     private List<ChartPoint> chartData;
     private List<RevealedAssetDto> revealedAssets;
     private String period;
+    /** O mesmo orçamento no CDI, na poupança, no Ibovespa e corrigido pela inflação. */
+    private List<BenchmarkDto> benchmarks;
+    private RoundStatsDto roundStats;
+    /** O que aconteceu de verdade no período; só depois da revelação. */
+    private String debrief;
+    private List<TipDto> tips;
 
     @Getter
     @Setter
@@ -43,5 +49,11 @@ public class PortfolioResultDto {
         private String bondType;
         private BigDecimal amountInvested;
         private BigDecimal finalValue;
+        /** Quanto o ativo rendeu no período, em %. */
+        private BigDecimal returnPct;
+        /** Quanto ele somou (ou tirou) da rentabilidade da carteira, em pontos percentuais do orçamento. */
+        private BigDecimal contribution;
+        /** Frase sobre o ativo no período; só depois da revelação. */
+        private String revealNote;
     }
 }

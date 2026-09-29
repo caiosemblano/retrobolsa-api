@@ -9,6 +9,8 @@ import com.retrobolsa.api.game.asset.AssetSnapshot;
 import com.retrobolsa.api.game.asset.AssetSnapshotRepository;
 import com.retrobolsa.api.game.competition.Competition;
 import com.retrobolsa.api.game.competition.CompetitionRepository;
+import com.retrobolsa.api.game.debrief.DebriefAdvisor;
+import com.retrobolsa.api.game.debrief.DebriefService;
 import com.retrobolsa.api.game.dto.PortfolioResultDto;
 import com.retrobolsa.api.game.dto.SubmitPortfolioRequestDto;
 import com.retrobolsa.api.game.dto.SubmitPortfolioResponseDto;
@@ -37,6 +39,7 @@ public class PortfolioService {
     private final UserRepository userRepository;
     private final SimulationEngine simulationEngine;
     private final AchievementService achievementService;
+    private final DebriefService debriefService;
 
     @Transactional
     public SubmitPortfolioResponseDto submit(UUID userId, SubmitPortfolioRequestDto request) {
@@ -161,7 +164,9 @@ public class PortfolioService {
         SimulationEngine.SimulationResult result = calculateResult(
                 portfolio, competition, inputs);
 
+        boolean revealed = "revealed".equals(competition.getStatus());
         List<PortfolioResultDto.RevealedAssetDto> revealedAssets = new ArrayList<>();
+        List<DebriefAdvisor.Position> positions = new ArrayList<>();
         for (SimulationEngine.AssetFinalValue afv : result.assetFinalValues()) {
             Asset asset = assetRepository.findById(afv.assetId())
                     .orElseThrow(() -> new IllegalStateException("Ativo nao encontrado"));
@@ -174,7 +179,8 @@ public class PortfolioService {
                 }
             }
 
-            boolean revealed = "revealed".equals(competition.getStatus());
+            BigDecimal invested = matchingAlloc != null ? matchingAlloc.getAmountInvested() : BigDecimal.ZERO;
+            positions.add(new DebriefAdvisor.Position(asset.getAnonymousName(), asset.getType(), invested, afv.finalValue()));
             revealedAssets.add(PortfolioResultDto.RevealedAssetDto.builder()
                     .id(asset.getId().toString())
                     .anonymousName(asset.getAnonymousName())
@@ -183,10 +189,20 @@ public class PortfolioService {
                     .type(asset.getType())
                     .sector(asset.getSector())
                     .bondType(asset.getBondType())
-                    .amountInvested(matchingAlloc != null ? matchingAlloc.getAmountInvested() : BigDecimal.ZERO)
+                    .amountInvested(invested)
                     .finalValue(afv.finalValue())
+                    .returnPct(invested.signum() == 0 ? BigDecimal.ZERO
+                            : afv.finalValue().subtract(invested).divide(invested, 6, RoundingMode.HALF_UP)
+                                    .multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP))
+                    // Em pontos do orçamento: somando as contribuições (e o caixa parado, que é zero) dá a rentabilidade.
+                    .contribution(afv.finalValue().subtract(invested)
+                            .divide(competition.getBudget(), 6, RoundingMode.HALF_UP)
+                            .multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP))
+                    .revealNote(revealed ? asset.getRevealNote() : null)
                     .build());
         }
+
+        DebriefService.Debrief debrief = debriefService.build(competition, positions, result.totalReturn(), revealed);
 
         return PortfolioResultDto.builder()
                 .rank(portfolio.getRank() != null ? portfolio.getRank() : 0)
@@ -196,6 +212,10 @@ public class PortfolioService {
                 .chartData(result.chartData())
                 .revealedAssets(revealedAssets)
                 .period(competition.getStartYear() + "-" + competition.getEndYear())
+                .benchmarks(debrief.benchmarks())
+                .roundStats(debrief.roundStats())
+                .debrief(debrief.debrief())
+                .tips(debrief.tips())
                 .build();
     }
 
