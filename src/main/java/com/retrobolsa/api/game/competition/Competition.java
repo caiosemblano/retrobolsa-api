@@ -38,6 +38,10 @@ public class Competition {
     @Column(name = "scenario_description", columnDefinition = "TEXT")
     private String scenarioDescription;
 
+    /** O que aconteceu de verdade no período; mostrado no resultado, depois da revelação. */
+    @Column(columnDefinition = "TEXT")
+    private String debrief;
+
     @Column(name = "start_year", nullable = false)
     private int startYear;
 

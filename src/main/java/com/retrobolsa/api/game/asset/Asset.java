@@ -37,6 +37,10 @@ public class Asset {
     @Column(name = "bond_type")
     private String bondType;
 
+    /** Uma frase sobre o ativo no período, mostrada só depois da revelação. */
+    @Column(name = "reveal_note", columnDefinition = "TEXT")
+    private String revealNote;
+
     @Column(name = "created_at", nullable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
