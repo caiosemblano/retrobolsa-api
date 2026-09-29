@@ -17,7 +17,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(properties = {
         // Segredo apenas de teste: em produção JWT_SECRET vem do ambiente, sem default.
         "jwt.secret=segredo-de-teste-retrobolsa-com-mais-de-32-bytes",
-        "retrobolsa.ranking.season-size=4"
+        "retrobolsa.ranking.season-size=4",
+        // O sorteio muda toda semana: ligadas, as missões dariam XP extra conforme o dia em que
+        // a suíte roda. Só o MissionControllerIntegrationTest as liga, com o relógio parado.
+        "retrobolsa.missions.enabled=false"
 })
 @AutoConfigureMockMvc
 @Testcontainers

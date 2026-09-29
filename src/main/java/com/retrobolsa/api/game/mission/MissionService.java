@@ -6,6 +6,7 @@ import com.retrobolsa.api.game.progress.XpService;
 import com.retrobolsa.api.game.progress.XpSource;
 import com.retrobolsa.api.user.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,14 @@ public class MissionService {
     private final AchievementService achievementService;
     private final Clock clock;
 
+    /**
+     * Interruptor das missões (RETROBOLSA_MISSIONS_ENABLED). Desligadas, os ganchos
+     * não contam nada; os testes de integração as desligam para que o sorteio da
+     * semana corrente não mude o XP que eles conferem.
+     */
+    @Value("${retrobolsa.missions.enabled:true}")
+    private boolean enabled = true;
+
     /** As missões que valem na semana da data, na ordem do sorteio. */
     @Transactional(readOnly = true)
     public List<MissionTemplate> drawn(LocalDate date) {
@@ -58,7 +67,7 @@ public class MissionService {
      */
     @Transactional
     public List<MissionTemplate> record(User user, MissionEvent event, String ref) {
-        if (ADMIN_ROLE.equals(user.getRole())) return List.of();
+        if (!enabled || ADMIN_ROLE.equals(user.getRole())) return List.of();
         LocalDateTime now = LocalDateTime.now(clock);
         String week = Missions.isoWeek(now.toLocalDate());
 

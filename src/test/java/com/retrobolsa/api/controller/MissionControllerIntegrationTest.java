@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Clock;
@@ -35,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Missões pelo caminho real, com o relógio parado numa quarta-feira cuja semana
  * sorteou "Conclua 2 aulas" e "Volte em 2 dias".
  */
+@TestPropertySource(properties = "retrobolsa.missions.enabled=true")
 class MissionControllerIntegrationTest extends AbstractIntegrationTest {
 
     static final LocalDate HOJE = quartaComAsMissoes("AULAS_2", "DOIS_DIAS");
