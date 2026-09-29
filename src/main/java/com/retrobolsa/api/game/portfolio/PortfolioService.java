@@ -11,6 +11,7 @@ import com.retrobolsa.api.game.competition.Competition;
 import com.retrobolsa.api.game.competition.CompetitionRepository;
 import com.retrobolsa.api.game.debrief.DebriefAdvisor;
 import com.retrobolsa.api.game.debrief.DebriefService;
+import com.retrobolsa.api.game.dto.CurrentPortfolioDto;
 import com.retrobolsa.api.game.dto.PortfolioResultDto;
 import com.retrobolsa.api.game.progress.ProgressService;
 import com.retrobolsa.api.game.progress.XpService;
@@ -114,6 +115,22 @@ public class PortfolioService {
                 .message("Carteira atualizada com sucesso")
                 .warnings(validated.warnings().isEmpty() ? null : validated.warnings())
                 .build();
+    }
+
+    /** A carteira do jogador na rodada aberta; vazia se não há rodada aberta ou se ele ainda não enviou. */
+    @Transactional(readOnly = true)
+    public Optional<CurrentPortfolioDto> current(UUID userId) {
+        return competitionRepository.findByStatus("open")
+                .flatMap(competition -> portfolioRepository.findByUserIdAndCompetitionId(userId, competition.getId()))
+                .map(portfolio -> CurrentPortfolioDto.builder()
+                        .competitionId(portfolio.getCompetition().getId().toString())
+                        .allocations(portfolio.getAllocations().stream()
+                                .map(allocation -> CurrentPortfolioDto.Position.builder()
+                                        .assetId(allocation.getAsset().getId().toString())
+                                        .amount(allocation.getAmountInvested())
+                                        .build())
+                                .toList())
+                        .build());
     }
 
     private Competition openCompetition(String competitionId) {

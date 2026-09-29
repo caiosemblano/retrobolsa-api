@@ -304,6 +304,30 @@ class PortfolioControllerIntegrationTest extends AbstractIntegrationTest {
     // ---------------------------------------------------------------
 
     @Test
+    void carteiraAtualSoExisteComRodadaAbertaEEnviada() throws Exception {
+        Asset ativo1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
+        Competition competicao = criarCompeticaoAberta(1, List.of(ativo1));
+        User usuario = criarUsuario("rafael@retrobolsa.com");
+        String token = "Bearer " + gerarToken(usuario);
+
+        mockMvc.perform(get("/api/portfolios/current").header("Authorization", token))
+                .andExpect(status().isNoContent());
+
+        submeter(usuario, competicao, alocacao(ativo1.getId(), new BigDecimal("40000.00")));
+        mockMvc.perform(get("/api/portfolios/current").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.competitionId").value(competicao.getId().toString()))
+                .andExpect(jsonPath("$.allocations", hasSize(1)))
+                .andExpect(jsonPath("$.allocations[0].assetId").value(ativo1.getId().toString()))
+                .andExpect(jsonPath("$.allocations[0].amount").value(40000.0));
+
+        competicao.setStatus("closed");
+        competitionRepository.save(competicao);
+        mockMvc.perform(get("/api/portfolios/current").header("Authorization", token))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
     void edicaoTrocaAsAlocacoesDaCarteira() throws Exception {
         Asset ativo1 = criarAssetComHistorico("Ação 1", new BigDecimal("0.10"));
         Asset ativo2 = criarAssetComHistorico("Ação 2", new BigDecimal("0.05"));

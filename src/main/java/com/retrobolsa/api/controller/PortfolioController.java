@@ -1,5 +1,6 @@
 package com.retrobolsa.api.controller;
 
+import com.retrobolsa.api.game.dto.CurrentPortfolioDto;
 import com.retrobolsa.api.game.dto.PortfolioResultDto;
 import com.retrobolsa.api.game.dto.SubmitPortfolioRequestDto;
 import com.retrobolsa.api.game.dto.SubmitPortfolioResponseDto;
@@ -39,6 +40,14 @@ public class PortfolioController {
 
         User user = resolveUser(authentication);
         return ResponseEntity.ok(portfolioService.update(user.getId(), request));
+    }
+
+    /** A carteira enviada na rodada aberta (204 se não há rodada aberta ou se ainda não enviou). */
+    @GetMapping("/current")
+    public ResponseEntity<CurrentPortfolioDto> current(Authentication authentication) {
+        return portfolioService.current(resolveUser(authentication).getId())
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @GetMapping("/my-last-result")
